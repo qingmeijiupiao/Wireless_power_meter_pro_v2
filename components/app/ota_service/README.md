@@ -6,7 +6,7 @@
 ## 版本检查
 
 - Manifest 地址：
-  `https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_lite@firmware-dist/ota/latest.json`
+  `https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@firmware-dist/ota/latest.json`
 - Manifest 由 Release 工作流生成，包含版本、固件大小和不可变下载 URL。
 - 发布内容保存在独立的 `firmware-dist` 分支，不依赖开发者本地构建或手工同步。
 - 仅当远端语义版本严格高于当前运行版本时允许在线升级。

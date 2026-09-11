@@ -31,14 +31,14 @@ static int32_t to_milli(float value) {
     return static_cast<int32_t>(value * 1000.0f);
 }
 
-static bool ina226_measurement_reliable(const GlobalStateFlags& flags) {
-    return flags.lp_ina226_initialized && !flags.lp_i2c_error && !flags.lp_ina226_read_timeout;
+static bool ina228_measurement_reliable(const GlobalStateFlags& flags) {
+    return flags.lp_ina228_initialized && !flags.lp_i2c_error && !flags.lp_ina228_read_timeout;
 }
 
 /**
  * @brief 将已正式提交的保护状态变化写入黑匣子。
  *
- * 日志同时保留当前值、主要阈值、旁路状态、输出状态和 INA226 原始值，
+ * 日志同时保留当前值、主要阈值、旁路状态、输出状态和 INA228 原始值，
  * 用于离线定位保护触发原因。
  */
 static void log_state_change_event(const char* channel, ProtectState_t last_state, ProtectState_t new_state,
@@ -273,9 +273,9 @@ ProtectState_t check_now_state(protect_threshold_t threshold, ProtectState_t las
     }
 }
 
-// OTP 保持较短触发确认；INA226 相关通道使用更长确认时间过滤电机和总线瞬态。
+// OTP 保持较短触发确认；INA228 相关通道使用更长确认时间过滤电机和总线瞬态。
 constexpr uint32_t protect_state_change_delay_ms        = 200;
-constexpr uint32_t ina226_protect_state_change_delay_ms = 2000;
+constexpr uint32_t ina228_protect_state_change_delay_ms = 2000;
 
 /**
  * @brief 返回指定保护通道的触发确认时间。
@@ -285,14 +285,14 @@ constexpr uint32_t ina226_protect_state_change_delay_ms = 2000;
  * *
  * @return 候选状态进入更严重级别前必须持续的 FreeRTOS tick 数。
  *
- * @note INA226
+ * @note INA228
  * 相关通道面对电机反电动势、I2C 瞬断和机械振动时更容易出现短时尖峰，
  *       因此使用 2s
  * 触发确认；恢复路径不调用该时间，恢复立即生效。
 
  */
 static TickType_t protect_state_change_delay_ticks(uint8_t channel) {
-    return pdMS_TO_TICKS(protect_is_ina226_channel(channel) ? ina226_protect_state_change_delay_ms
+    return pdMS_TO_TICKS(protect_is_ina228_channel(channel) ? ina228_protect_state_change_delay_ms
                                                             : protect_state_change_delay_ms);
 }
 
@@ -322,7 +322,7 @@ static void reset_pending_protect_states() {
  * * 候选状态恢复为当前状态，或在等待期间变化为另一状态时，原计时立即取消。
  *
  *
- * @note 恢复到更轻状态不做时间迟滞，保证故障解除或 INA226
+ * @note 恢复到更轻状态不做时间迟滞，保证故障解除或 INA228
  * 降级解除后不会继续阻塞调试输出。
 
  */
@@ -420,8 +420,8 @@ bool protect_should_block_output() {
     if (states.temperature_protect_state == PROTECT_STATE_PROTECT) {
         return true;
     }
-    // INA226 降级时不允许 OVP/UVP/OCP 的旧状态继续阻止输出，避免传感器异常影响机器人调试。
-    if (!ina226_measurement_reliable(state.flags)) {
+    // INA228 降级时不允许 OVP/UVP/OCP 的旧状态继续阻止输出，避免传感器异常影响机器人调试。
+    if (!ina228_measurement_reliable(state.flags)) {
         return false;
     }
     return states.high_voltage_protect_state == PROTECT_STATE_PROTECT ||
@@ -430,19 +430,19 @@ bool protect_should_block_output() {
 }
 
 /**
- * @brief 判断 INA226 测量链路是否可用于保护决策。
+ * @brief 判断 INA228 测量链路是否可用于保护决策。
  *
  * @return true 当前电压/电流数据可以参与 OVP、UVP、OCP 和
  * MOS 诊断；false 当前只能展示/记录降级状态。
  */
-bool protect_ina226_measurement_reliable() {
-    return ina226_measurement_reliable(get_global_state().flags);
+bool protect_ina228_measurement_reliable() {
+    return ina228_measurement_reliable(get_global_state().flags);
 }
 
 /**
- * @brief 判断通道是否依赖 INA226 电压/电流数据。
+ * @brief 判断通道是否依赖 INA228 电压/电流数据。
  */
-bool protect_is_ina226_channel(uint32_t channel) {
+bool protect_is_ina228_channel(uint32_t channel) {
     return channel == 1 || channel == 2 || channel == 3;
 }
 
@@ -556,7 +556,7 @@ static bool _protect_init_ok = false;
  * *
  * 按通道区分的触发确认；恢复状态立即提交。正式切换后记录黑匣子并通知输出控制等订阅模块。
  *
- * @note INA226
+ * @note INA228
  * 不可靠时 OVP、UVP、OCP 直接恢复为 NORMAL，不参与输出阻断。
  */
 void protect_task(void* pvParameters) {
@@ -565,21 +565,21 @@ void protect_task(void* pvParameters) {
     ProtectState_t temp_state;
     ProtectState_t last_state;
     static bool    first_check          = true;
-    bool           last_ina226_reliable = protect_ina226_measurement_reliable();
+    bool           last_ina228_reliable = protect_ina228_measurement_reliable();
 
     while (1) {
         const auto state           = get_global_state();
         auto       global_state_protects = state.protect_states.states_bit;
-        const bool ina226_reliable = ina226_measurement_reliable(state.flags);
-        if (ina226_reliable != last_ina226_reliable) {
-            if (ina226_reliable) {
+        const bool ina228_reliable = ina228_measurement_reliable(state.flags);
+        if (ina228_reliable != last_ina228_reliable) {
+            if (ina228_reliable) {
                 DEVICE_STATE_I(PROTECT_LOG_TAG, "protect: measurement old=unreliable new=reliable");
             } else {
                 DEVICE_STATE_W(PROTECT_LOG_TAG,
-                               "protect: measurement old=reliable new=unreliable reason=ina226 flags=0x%08lx",
+                               "protect: measurement old=reliable new=unreliable reason=ina228 flags=0x%08lx",
                                static_cast<uint32_t>(std::bit_cast<uint32_t>(state.flags)));
             }
-            last_ina226_reliable = ina226_reliable;
+            last_ina228_reliable = ina228_reliable;
         }
 
         // 检查温度保护状态
@@ -603,7 +603,7 @@ void protect_task(void* pvParameters) {
         // 检查电压保护状态
         temp_state = debounce_protect_state(
             1, global_state_protects.high_voltage_protect_state,
-            ina226_reliable ? check_now_state(high_voltage_threshold, global_state_protects.high_voltage_protect_state,
+            ina228_reliable ? check_now_state(high_voltage_threshold, global_state_protects.high_voltage_protect_state,
                                               state.voltage_mV / 1e3)
                             : PROTECT_STATE_NORMAL);
         if (temp_state != global_state_protects.high_voltage_protect_state) {
@@ -620,7 +620,7 @@ void protect_task(void* pvParameters) {
 
         temp_state = debounce_protect_state(
             2, global_state_protects.low_voltage_protect_state,
-            ina226_reliable ? check_now_state(low_voltage_threshold, global_state_protects.low_voltage_protect_state,
+            ina228_reliable ? check_now_state(low_voltage_threshold, global_state_protects.low_voltage_protect_state,
                                               state.voltage_mV / 1e3)
                             : PROTECT_STATE_NORMAL);
         if (temp_state != global_state_protects.low_voltage_protect_state) {
@@ -638,7 +638,7 @@ void protect_task(void* pvParameters) {
         // 检查电流保护状态
         temp_state = debounce_protect_state(
             3, global_state_protects.current_protect_state,
-            ina226_reliable ? check_now_state(current_threshold, global_state_protects.current_protect_state,
+            ina228_reliable ? check_now_state(current_threshold, global_state_protects.current_protect_state,
                                               std::abs(state.current_uA) / 1e6)
                             : PROTECT_STATE_NORMAL);
         if (temp_state != global_state_protects.current_protect_state) {

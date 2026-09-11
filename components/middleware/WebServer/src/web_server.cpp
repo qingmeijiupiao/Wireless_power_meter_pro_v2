@@ -322,12 +322,11 @@ static esp_err_t dispatch(httpd_req_t* req) {
         return route->handler(request);
     }
 
-    // Captive Portal模式下，未命中的URL统一返回首页。
+    // Captive Portal 模式下，探测 URL 和其他未知地址只返回轻量重定向。
+    // Android 会并发请求 generate_204；若直接给每个探测连接发送完整页面，
+    // 探测客户端识别 Portal 后主动断开，服务端容易阻塞到发送超时。
     if (captive_portal_enabled) {
-        Route* index_route = find_route("/", Method::GET);
-        if (index_route != nullptr && index_route->handler != nullptr) {
-            return index_route->handler(request);
-        }
+        return redirect(request, "/provision");
     }
 
     if (not_found_handler != nullptr) {
@@ -552,6 +551,7 @@ esp_err_t redirect(Request* request, const char* location) {
     }
     httpd_resp_set_status(request->raw, "302 Found");
     httpd_resp_set_hdr(request->raw, "Location", location);
+    httpd_resp_set_hdr(request->raw, "Cache-Control", "no-store");
     return httpd_resp_send(request->raw, "", 0);
 }
 

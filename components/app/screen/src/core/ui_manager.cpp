@@ -13,7 +13,7 @@
 #include "pages/curve/curve_history.h"
 #include "freertos/task.h"
 #include "power_output.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "widgets/ui_chrome.h"
 
 namespace SCREEN {
@@ -22,7 +22,12 @@ namespace {
 static constexpr char TAG[] = "UIManager";
 
 const char* button_to_str(ButtonId button) {
-    return button == ButtonId::Main ? "main" : "side";
+    switch (button) {
+    case ButtonId::Main: return "main";
+    case ButtonId::Side: return "side";
+    case ButtonId::Previous: return "previous";
+    default: return "unknown";
+    }
 }
 
 const char* event_to_str(ButtonEvent event) {
@@ -89,9 +94,9 @@ void UIManager::apply_saved_display_config() {
     bool    rotate_180 = ui_config_get_rotation_180();
     uint8_t level      = ui_config_get_backlight_level();
 
-    // 页面仍使用 160x80 逻辑坐标，旋转映射交给 ST7735 驱动处理。
-    ST7735::set_rotation(rotate_180 ? ST7735::Rotation::HorizontalMirror : ST7735::Rotation::Horizontal);
-    ST7735::set_backlight(backlight_value_from_level(level));
+    // 页面仍使用 160x80 逻辑坐标，旋转映射交给 ST7789 驱动处理。
+    ST7789::set_rotation(rotate_180 ? ST7789::Rotation::HorizontalMirror : ST7789::Rotation::Horizontal);
+    ST7789::set_backlight(backlight_value_from_level(level));
 }
 
 void UIManager::loop_once() {
@@ -113,7 +118,7 @@ void UIManager::loop_once() {
     }
 
     // 当前页面实现均为整屏绘制，因此每帧直接同步当前缓冲即可。
-    ST7735::sync_buffers();
+    ST7789::sync_buffers();
     full_redraw_    = false;
     last_render_ms_ = now_ms;
 }
@@ -150,6 +155,8 @@ void UIManager::handle_button(ButtonId button, ButtonEvent event) {
         handle_default_side_button(event);
     } else if (button == ButtonId::Main) {
         handle_default_main_button(event);
+    } else if (button == ButtonId::Previous && event == ButtonEvent::SHORT_PRESS) {
+        previous_page();
     }
 }
 
@@ -187,6 +194,17 @@ void UIManager::next_page() {
     page->on_exit();
     const char* previous_title = page->title();
     current_page_              = (current_page_ + 1) % static_cast<uint8_t>(PageId::Count);
+    current_page()->on_enter();
+    ESP_LOGI(TAG, "page %s -> %s", previous_title, current_page()->title());
+    full_redraw_ = true;
+}
+
+void UIManager::previous_page() {
+    Page* page = current_page();
+    page->on_edit_exit();
+    page->on_exit();
+    const char* previous_title = page->title();
+    current_page_ = current_page_ == 0 ? static_cast<uint8_t>(PageId::Count) - 1 : current_page_ - 1;
     current_page()->on_enter();
     ESP_LOGI(TAG, "page %s -> %s", previous_title, current_page()->title());
     full_redraw_ = true;

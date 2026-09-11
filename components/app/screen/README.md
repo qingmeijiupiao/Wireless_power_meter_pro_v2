@@ -1,6 +1,6 @@
 # screen
 
-ESP32-C6 本地屏幕应用组件。组件负责 ST7735S 160×80 显示、页面生命周期、按键事件分发、页面刷新和显示配置持久化。
+ESP32-C6 本地屏幕应用组件。组件负责 ST7789V 240×135 显示、页面生命周期、按键事件分发、页面刷新和显示配置持久化。
 
 ## 架构
 
@@ -11,7 +11,7 @@ flowchart TD
     Registry["PageRegistry"] --> Manager
     Manager --> Page["Current Page"]
     Page --> Services["Application services"]
-    Page --> Driver["ST7735 driver"]
+    Page --> Driver["ST7789 driver"]
     Config["DisplayConfig / NVS"] --> Manager
     History["CurveHistory"] --> Page
 ```
@@ -53,14 +53,14 @@ screen/
 ## 启动和运行流程
 
 1. `app_main` 在硬件配置初始化后创建 `screen_task`。
-2. `screen_task` 根据硬件版本生成 ST7735 配置并初始化显示驱动。
+2. `screen_task` 根据硬件版本生成 ST7789 配置并初始化显示驱动。
 3. 应用 NVS 中保存的旋转和背光配置，按配置显示开机画面。
 4. 等待开机画面时间结束且保护模块完成首次检测。
 5. `UIManager::init()` 创建固定长度按键队列并加载静态页面注册表。
 6. 主循环持续采集曲线历史、消费按键、按当前页面周期渲染并同步显存。
 
 页面切换和按键处理都在 `screen_task` 中执行。Button 任务只负责无阻塞投递
-`ButtonMessage`，因此页面状态和 ST7735 绘制不需要跨任务互斥。
+`ButtonMessage`，因此页面状态和 ST7789 绘制不需要跨任务互斥。
 
 ## 页面
 

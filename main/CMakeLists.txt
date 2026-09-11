@@ -49,7 +49,7 @@ add_dependencies(${COMPONENT_LIB} run_pre_build)
 
 # 构建后处理
 add_custom_target(run_post_build ALL
-    COMMAND python ${SCRIPT_DIR}/post_build.py
+    COMMAND ${CMAKE_COMMAND} -E env "PROJECT_BUILD_DIR=${CMAKE_BINARY_DIR}" ${PYTHON} ${SCRIPT_DIR}/post_build.py
     COMMENT "Running post-build Python script..."
     VERBATIM
 )

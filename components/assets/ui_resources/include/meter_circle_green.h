@@ -2,7 +2,7 @@
  * @file meter_circle_green.h
  * @brief meter_circle_green图片的RGB565数组数据
  * 
- * 自动生成的图片数据，用于ST7735显示屏
+ * 自动生成的图片数据，用于ST7789显示屏
  * 尺寸: 10x10 像素
  * 格式: RGB565 (小端序)
  */

@@ -1,25 +1,28 @@
 /**
- * @file st7735.cpp
- * @brief ST7735S显示屏驱动 (160x80)
+ * @file st7789.cpp
+ * @brief ST7789V 显示屏驱动 (240x135)
  */
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "st7735.h"
-#include "st7735_commands.h"
+#include "st7789.h"
+#include "st7789_commands.h"
 #include "pwm.h"
 #include "Interp.hpp"
 #include "backlight_lut.h"
 #include <algorithm>
 
-namespace ST7735 {
+namespace ST7789 {
 
-static const char* TAG = "ST7735";
+static const char* TAG = "ST7789";
 
 static constexpr uint32_t SPI_CLOCK_SPEED_HZ = 50 * 1000 * 1000;
-static constexpr uint32_t MAX_TRANSFER_SIZE  = 160 * 80 * 2 + 8;
+static constexpr uint32_t MAX_TRANSFER_SIZE  = WIDTH * HEIGHT * 2 + 8;
+// ESP32-C6 的 GPSPI DMA 单次事务长度寄存器为 18 bit，即最多 32768 字节。
+// 一帧 240x135 RGB565 数据为 64800 字节，因此必须拆分发送。
+static constexpr size_t SPI_DMA_CHUNK_SIZE = 32 * 1024;
 
 static spi_device_handle_t spi            = NULL;
 static gpio_num_t          dc_pin         = GPIO_NUM_NC;
@@ -49,15 +52,21 @@ static void write_command(uint8_t cmd) {
 }
 
 static void write_data(const uint8_t* data, size_t len) {
-    if (len == 0)
-        return;
-
-    spi_transaction_t t = {};
-    t.length            = len * 8;
-    t.tx_buffer         = data;
-
     gpio_set_level(dc_pin, 1);
-    spi_device_polling_transmit(spi, &t);
+    while (len > 0) {
+        const size_t chunk_len = std::min(len, SPI_DMA_CHUNK_SIZE);
+        spi_transaction_t t    = {};
+        t.length               = chunk_len * 8;
+        t.tx_buffer            = data;
+        const esp_err_t ret    = spi_device_polling_transmit(spi, &t);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "SPI data transmit failed: %s, chunk=%u", esp_err_to_name(ret),
+                     static_cast<unsigned>(chunk_len));
+            return;
+        }
+        data += chunk_len;
+        len  -= chunk_len;
+    }
 }
 
 static inline void write_data_byte(uint8_t byte) {
@@ -66,19 +75,19 @@ static inline void write_data_byte(uint8_t byte) {
 
 static void set_address_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
     uint8_t data[4];
-    write_command(ST7735_CASET);
+    write_command(ST7789_CASET);
     data[0] = (x0 + colstart) >> 8;
     data[1] = (x0 + colstart) & 0xFF;
     data[2] = (x1 + colstart) >> 8;
     data[3] = (x1 + colstart) & 0xFF;
     write_data(data, 4);
-    write_command(ST7735_RASET);
+    write_command(ST7789_RASET);
     data[0] = (y0 + rowstart) >> 8;
     data[1] = (y0 + rowstart) & 0xFF;
     data[2] = (y1 + rowstart) >> 8;
     data[3] = (y1 + rowstart) & 0xFF;
     write_data(data, 4);
-    write_command(ST7735_RAMWR);
+    write_command(ST7789_RAMWR);
 }
 
 void switch_buffers() {
@@ -101,7 +110,7 @@ esp_err_t init(const Config* cfg, Rotation rotation) {
     dc_pin  = static_cast<gpio_num_t>(cfg->dc_io_num);
     rst_pin = static_cast<gpio_num_t>(cfg->rst_io_num);
 
-    ESP_LOGD(TAG, "ST7735 Driver - Adafruit Mini TFT 0.96");
+    ESP_LOGD(TAG, "ST7789V Driver - 1.14 inch TFT 240x135");
     ESP_LOGD(TAG, "PINS: MOSI=%d CLK=%d CS=%d DC=%d RST=%d BL=%d", cfg->mosi_io_num, cfg->sclk_io_num, cfg->cs_io_num,
              cfg->dc_io_num, cfg->rst_io_num, cfg->bl_io_num);
 
@@ -151,72 +160,52 @@ esp_err_t init(const Config* cfg, Rotation rotation) {
     }
     ESP_LOGD(TAG, "SPI @ %d MHz", SPI_CLOCK_SPEED_HZ / 1000000);
 
-    /*这里的启动时序已经优化过，非必要勿动*/
+    /* ST7789V 上电和硬复位时序。 */
     gpio_set_level(rst_pin, 1);
     vTaskDelay(pdMS_TO_TICKS(5));
     gpio_set_level(rst_pin, 0);
     vTaskDelay(pdMS_TO_TICKS(1));
     gpio_set_level(rst_pin, 1);
     vTaskDelay(pdMS_TO_TICKS(5));
-    // write_command(ST7735_SWRESET); vTaskDelay(pdMS_TO_TICKS(120));
-    write_command(ST7735_SLPOUT);
+    write_command(ST7789_SWRESET);
+    vTaskDelay(pdMS_TO_TICKS(150));
+    write_command(ST7789_SLPOUT);
     vTaskDelay(pdMS_TO_TICKS(120));
 
-    write_command(ST7735_FRMCTR1);
-    write_data_byte(0x01);
-    write_data_byte(0x2C);
-    write_data_byte(0x2D);
-    write_command(ST7735_FRMCTR2);
-    write_data_byte(0x01);
-    write_data_byte(0x2C);
-    write_data_byte(0x2D);
-    write_command(ST7735_FRMCTR3);
-    write_data_byte(0x01);
-    write_data_byte(0x2C);
-    write_data_byte(0x2D);
-    write_data_byte(0x01);
-    write_data_byte(0x2C);
-    write_data_byte(0x2D);
+    write_command(ST7789_COLMOD);
+    write_data_byte(0x05);
 
-    write_command(ST7735_INVCTR);
-    write_data_byte(0x07);
-    write_command(ST7735_PWCTR1);
-    write_data_byte(0xA2);
-    write_data_byte(0x02);
-    write_data_byte(0x84);
-    write_command(ST7735_PWCTR2);
-    write_data_byte(0xC5);
-    write_command(ST7735_PWCTR3);
-    write_data_byte(0x0A);
-    write_data_byte(0x00);
-    write_command(ST7735_PWCTR4);
-    write_data_byte(0x8A);
-    write_data_byte(0x2A);
-    write_command(ST7735_PWCTR5);
-    write_data_byte(0x8A);
-    write_data_byte(0xEE);
-    write_command(ST7735_VMCTR1);
-    write_data_byte(0x0E);
-    write_command(ST7735_INVOFF);
+    // Porch, gate、VCOM 和电源参数采用常见 1.14 英寸 ST7789V 模组推荐值。
+    write_command(0xB2);
+    { uint8_t d[] = {0x0C, 0x0C, 0x00, 0x33, 0x33}; write_data(d, sizeof(d)); }
+    write_command(0xB7); write_data_byte(0x35);
+    write_command(0xBB); write_data_byte(0x19);
+    write_command(0xC0); write_data_byte(0x2C);
+    write_command(0xC2); write_data_byte(0x01);
+    write_command(0xC3); write_data_byte(0x12);
+    write_command(0xC4); write_data_byte(0x20);
+    write_command(0xC6); write_data_byte(0x0F);
+    write_command(0xD0);
+    { uint8_t d[] = {0xA4, 0xA1}; write_data(d, sizeof(d)); }
 
     set_rotation(rotation);
 
-    write_command(ST7735_COLMOD);
-    write_data_byte(0x05);
-
-    write_command(ST7735_GMCTRP1);
+    write_command(ST7789_GMCTRP1);
     {
-        uint8_t d[] = {0x02, 0x1C, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2D, 0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03, 0x10};
-        write_data(d, 16);
+        uint8_t d[] = {0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23};
+        write_data(d, sizeof(d));
     }
-    write_command(ST7735_GMCTRN1);
+    write_command(ST7789_GMCTRN1);
     {
-        uint8_t d[] = {0x03, 0x1D, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D, 0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02, 0x10};
-        write_data(d, 16);
+        uint8_t d[] = {0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23};
+        write_data(d, sizeof(d));
     }
 
-    write_command(ST7735_NORON);
-    write_command(ST7735_DISPON);
+    write_command(ST7789_NORON);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    write_command(ST7789_INVON);
+    write_command(ST7789_DISPON);
+    vTaskDelay(pdMS_TO_TICKS(120));
 
     ESP_LOGD(TAG, "screen setup success: %dx%d pixels", display_width, display_height);
     return ESP_OK;
@@ -422,28 +411,28 @@ void set_rotation(Rotation rotation) {
     uint8_t madctl;
     switch (rotation) {
     case Rotation::Vertical:
-        madctl         = 0x08;
-        colstart       = ROWSTART;
-        rowstart       = COLSTART;
+        madctl         = 0x00;
+        colstart       = 52;
+        rowstart       = 40;
         display_width  = HEIGHT;
         display_height = WIDTH;
         break;
     case Rotation::Horizontal:
-        madctl         = 0x78;
+        madctl         = 0x60;
         colstart       = COLSTART;
         rowstart       = ROWSTART;
         display_width  = WIDTH;
         display_height = HEIGHT;
         break;
     case Rotation::VerticalMirror:
-        madctl         = 0xC8;
-        colstart       = ROWSTART;
-        rowstart       = COLSTART;
+        madctl         = 0xC0;
+        colstart       = 53;
+        rowstart       = 40;
         display_width  = HEIGHT;
         display_height = WIDTH;
         break;
     case Rotation::HorizontalMirror:
-        madctl         = 0xB8;
+        madctl         = 0xA0;
         colstart       = COLSTART;
         rowstart       = ROWSTART;
         display_width  = WIDTH;
@@ -452,12 +441,12 @@ void set_rotation(Rotation rotation) {
     default:
         return;
     }
-    write_command(ST7735_MADCTL);
+    write_command(ST7789_MADCTL);
     write_data_byte(madctl);
 }
 
 void invert_display(bool invert) {
-    write_command(invert ? ST7735_INVON : ST7735_INVOFF);
+    write_command(invert ? ST7789_INVON : ST7789_INVOFF);
 }
 
 static uint16_t map_px_data(uint8_t px_val, uint16_t bg, uint16_t color) {
@@ -513,7 +502,7 @@ void draw_string(uint16_t x, uint16_t y, const char* str, color_t color, color_t
             y  += font.font_height;
             cx  = x;
         } else {
-            ST7735::draw_char(cx, y, *str, color, bg, font);
+            ST7789::draw_char(cx, y, *str, color, bg, font);
             cx += font.width_table[*str - 32];
         }
         str++;
@@ -529,7 +518,7 @@ uint16_t get_height(void) {
 
 esp_err_t set_backlight(uint8_t brightness) {
     if (!backlight_initialized) {
-        ESP_LOGE("ST7735", "backlight not supported");
+        ESP_LOGE("ST7789", "backlight not supported");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -567,4 +556,4 @@ void draw_image(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* 
     }
 }
 
-} // namespace ST7735
+} // namespace ST7789

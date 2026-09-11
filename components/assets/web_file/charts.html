@@ -1,16 +1,22 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>趋势曲线 - Wireless Power Meter Lite</title>
+  <title>趋势曲线 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <!-- Bring-up 阶段禁用公网 Chart.js，后续改为固件内置资源后恢复。 -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script> -->
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">趋势曲线</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">趋势曲线</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab active" href="/charts.html">趋势曲线</a>
@@ -20,22 +26,55 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
       <div class="page-head">
-        <div><h2>趋势曲线</h2><div class="sub">各曲线独立显示，按选择的时间范围展示变化</div></div>
+        <div>
+          <h2>趋势曲线</h2>
+          <div class="sub">各曲线独立显示，按选择的时间范围展示变化</div>
+        </div>
         <div class="actions">
-          <select id="sampleRate"><option value="200">0.2s 刷新</option><option value="500">0.5s 刷新</option><option value="1000">1s 刷新</option><option value="2000">2s 刷新</option><option value="5000">5s 刷新</option></select>
-          <select id="historyWindow"><option value="30000">保留 30 秒</option><option value="60000">保留 1 分钟</option><option value="180000">保留 3 分钟</option><option value="300000">保留 5 分钟</option><option value="600000">保留 10 分钟</option><option value="1800000">保留 30 分钟</option><option value="3600000">保留 1 小时</option><option value="10800000">保留 3 小时</option><option value="21600000">保留 6 小时</option><option value="43200000">保留 12 小时</option><option value="86400000">保留 24 小时</option></select>
+          <select id="sampleRate">
+            <option value="200">0.2s 刷新</option>
+            <option value="500">0.5s 刷新</option>
+            <option value="1000">1s 刷新</option>
+            <option value="2000">2s 刷新</option>
+            <option value="5000">5s 刷新</option>
+          </select>
+          <select id="historyWindow">
+            <option value="30000">保留 30 秒</option>
+            <option value="60000">保留 1 分钟</option>
+            <option value="180000">保留 3 分钟</option>
+            <option value="300000">保留 5 分钟</option>
+            <option value="600000">保留 10 分钟</option>
+            <option value="1800000">保留 30 分钟</option>
+            <option value="3600000">保留 1 小时</option>
+            <option value="10800000">保留 3 小时</option>
+            <option value="21600000">保留 6 小时</option>
+            <option value="43200000">保留 12 小时</option>
+            <option value="86400000">保留 24 小时</option>
+          </select>
         </div>
       </div>
       <div class="notice" id="chartError" hidden>曲线库加载失败，实时曲线不可用；其他页面不受影响。</div>
       <div class="chart-grid" id="chartGrid">
-        <div class="card"><div class="card-title"><strong>电压</strong><span class="sub" id="vNow">-- V</span></div><div class="chart-box"><canvas id="chartVoltage"></canvas></div></div>
-        <div class="card"><div class="card-title"><strong>电流</strong><span class="sub" id="cNow">-- A</span></div><div class="chart-box"><canvas id="chartCurrent"></canvas></div></div>
-        <div class="card"><div class="card-title"><strong>功率</strong><span class="sub" id="pNow">-- W</span></div><div class="chart-box"><canvas id="chartPower"></canvas></div></div>
-        <div class="card"><div class="card-title"><strong>板温</strong><span class="sub" id="tNow">-- C</span></div><div class="chart-box"><canvas id="chartTemp"></canvas></div></div>
+        <div class="card">
+          <div class="card-title"><strong>电压</strong><span class="sub" id="vNow">-- V</span></div>
+          <div class="chart-box"><canvas id="chartVoltage"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><strong>电流</strong><span class="sub" id="cNow">-- A</span></div>
+          <div class="chart-box"><canvas id="chartCurrent"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><strong>功率</strong><span class="sub" id="pNow">-- W</span></div>
+          <div class="chart-box"><canvas id="chartPower"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><strong>板温</strong><span class="sub" id="tNow">-- C</span></div>
+          <div class="chart-box"><canvas id="chartTemp"></canvas></div>
+        </div>
       </div>
     </main>
   </div>
@@ -107,9 +146,10 @@
       if (timer) clearInterval(timer);
       timer = setInterval(() => loadState().catch(() => $('topStatus').textContent = '状态读取失败'), Number($('sampleRate').value));
     }
-    window.addEventListener('load', () => { setTimeout(initCharts, 200); loadState().catch(() => {}); restart(); });
+    window.addEventListener('load', () => { setTimeout(initCharts, 200); loadState().catch(() => { }); restart(); });
     $('sampleRate').onchange = restart;
-    $('historyWindow').onchange = () => { maxWindowMs = Number($('historyWindow').value); trimSamples(); loadState().catch(() => {}); };
+    $('historyWindow').onchange = () => { maxWindowMs = Number($('historyWindow').value); trimSamples(); loadState().catch(() => { }); };
   </script>
 </body>
+
 </html>

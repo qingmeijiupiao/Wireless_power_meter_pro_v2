@@ -36,7 +36,7 @@
 #include "meter_v_logo.h"
 #include "meter_w_logo.h"
 #include "settings_logo.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "ota_service.h"
 #include "ui_close.h"
 #include "ui_open.h"
@@ -197,21 +197,21 @@ uint16_t curve_text_width(const char* text) {
  * @param outlined 是否绘制边框。
  * @param outline_color 边框颜色。
  */
-void draw_curve_badge(uint16_t x, uint16_t y, uint16_t width, const char* text, ST7735::color_t foreground,
-                      ST7735::color_t background, bool outlined = false,
-                      ST7735::color_t outline_color = ST7735::YELLOW) {
+void draw_curve_badge(uint16_t x, uint16_t y, uint16_t width, const char* text, ST7789::color_t foreground,
+                      ST7789::color_t background, bool outlined = false,
+                      ST7789::color_t outline_color = ST7789::YELLOW) {
     constexpr uint16_t badge_height = 13;
     constexpr uint16_t badge_radius = 4;
-    ST7735::fill_round_rect(x, y, width, badge_height, badge_radius, background, ST7735::BLACK);
+    ST7789::fill_round_rect(x, y, width, badge_height, badge_radius, background, ST7789::BLACK);
     if (outlined) {
         // 驱动的边框图元会同步重绘内部背景，因此必须先画边框再画文字。
-        ST7735::draw_round_rect(x, y, width, badge_height, badge_radius, 1, outline_color, background);
+        ST7789::draw_round_rect(x, y, width, badge_height, badge_radius, 1, outline_color, background);
     }
 
     const uint16_t text_width = curve_text_width(text);
     const uint16_t text_x     = x + (width > text_width ? (width - text_width) / 2 : 0);
     // 曲线页全部文字基线统一下移 1px。
-    ST7735::draw_string(text_x, y + 2, text, foreground, background, DENGB12);
+    ST7789::draw_string(text_x, y + 2, text, foreground, background, DENGB12);
 }
 
 } // namespace
@@ -436,17 +436,17 @@ void CurvePage::update_auto_range(CurveMetric metric, const CurveBucket* buckets
 }
 
 void CurvePage::draw_grid(uint16_t x, uint16_t y, uint16_t width, uint16_t height) const {
-    const ST7735::color_t grid_color(0x242424);
+    const ST7789::color_t grid_color(0x242424);
     for (uint8_t i = 0; i <= 4; ++i) {
         const uint16_t grid_x = x + (width - 1) * i / 4;
-        ST7735::draw_line(grid_x, y, grid_x, y + height - 1, grid_color);
+        ST7789::draw_line(grid_x, y, grid_x, y + height - 1, grid_color);
         const uint16_t grid_y = y + (height - 1) * i / 4;
-        ST7735::draw_line(x, grid_y, x + width - 1, grid_y, grid_color);
+        ST7789::draw_line(x, grid_y, x + width - 1, grid_y, grid_color);
     }
 }
 
 void CurvePage::draw_bucket_curve(const CurveBucket* buckets, size_t bucket_count, const AutoRange& range, uint16_t x,
-                                  uint16_t y, uint16_t height, ST7735::color_t color) const {
+                                  uint16_t y, uint16_t height, ST7789::color_t color) const {
     if (!range.initialized || range.maximum <= range.minimum) {
         return;
     }
@@ -471,9 +471,9 @@ void CurvePage::draw_bucket_curve(const CurveBucket* buckets, size_t bucket_coun
         const int16_t average_y = map_y(buckets[i].average);
 
         // 像素桶竖线保留瞬时峰谷，平均值连线表达整体趋势。
-        ST7735::draw_line(point_x, maximum_y, point_x, minimum_y, color);
+        ST7789::draw_line(point_x, maximum_y, point_x, minimum_y, color);
         if (have_previous) {
-            ST7735::draw_line(previous_x, previous_y, point_x, average_y, color);
+            ST7789::draw_line(previous_x, previous_y, point_x, average_y, color);
         }
         previous_x    = point_x;
         previous_y    = average_y;
@@ -481,11 +481,11 @@ void CurvePage::draw_bucket_curve(const CurveBucket* buckets, size_t bucket_coun
     }
 }
 
-void CurvePage::draw_single_metric(CurveMetric metric, ST7735::color_t color) {
+void CurvePage::draw_single_metric(CurveMetric metric, ST7789::color_t color) {
     constexpr uint16_t plot_x      = 31;
     constexpr uint16_t plot_y      = 16;
-    constexpr uint16_t plot_width  = ST7735::WIDTH - plot_x;
-    constexpr uint16_t plot_height = ST7735::HEIGHT - plot_y;
+    constexpr uint16_t plot_width  = ST7789::WIDTH - plot_x;
+    constexpr uint16_t plot_height = ST7789::HEIGHT - plot_y;
     CurveHistory::instance().build_buckets(metric, window_ms(), buckets_, plot_width);
     const uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
     update_auto_range(metric, buckets_, plot_width, now_ms);
@@ -518,29 +518,29 @@ void CurvePage::draw_single_metric(CurveMetric metric, ST7735::color_t color) {
         format_curve_value(minimum_text, sizeof(minimum_text), visible_minimum);
 
         // 左侧 64px 高度按 MAX、最大值、最小值、MIN 顺序排满。
-        const ST7735::color_t maximum_color(0xFFC247);
-        const ST7735::color_t minimum_color(0x4DD9FF);
-        draw_curve_badge(1, 17, 28, "MAX", ST7735::BLACK, ST7735::color_t(0xFF8A00));
-        draw_curve_badge(1, 32, 28, maximum_text, maximum_color, ST7735::color_t(0x181108), true, maximum_color);
-        draw_curve_badge(1, 49, 28, minimum_text, minimum_color, ST7735::color_t(0x081418), true, minimum_color);
-        draw_curve_badge(1, 66, 28, "MIN", ST7735::BLACK, ST7735::color_t(0x2FC9EC));
+        const ST7789::color_t maximum_color(0xFFC247);
+        const ST7789::color_t minimum_color(0x4DD9FF);
+        draw_curve_badge(1, 17, 28, "MAX", ST7789::BLACK, ST7789::color_t(0xFF8A00));
+        draw_curve_badge(1, 32, 28, maximum_text, maximum_color, ST7789::color_t(0x181108), true, maximum_color);
+        draw_curve_badge(1, 49, 28, minimum_text, minimum_color, ST7789::color_t(0x081418), true, minimum_color);
+        draw_curve_badge(1, 66, 28, "MIN", ST7789::BLACK, ST7789::color_t(0x2FC9EC));
     }
 }
 
 void CurvePage::draw_all_metrics() {
     constexpr uint16_t    plot_x      = 2;
     constexpr uint16_t    plot_y      = 16;
-    constexpr uint16_t    plot_width  = ST7735::WIDTH - 2;
-    constexpr uint16_t    plot_height = ST7735::HEIGHT - plot_y;
+    constexpr uint16_t    plot_width  = ST7789::WIDTH - 2;
+    constexpr uint16_t    plot_height = ST7789::HEIGHT - plot_y;
     constexpr CurveMetric metrics[]   = {
         CurveMetric::Voltage,
         CurveMetric::Current,
         CurveMetric::Power,
     };
-    const ST7735::color_t colors[] = {
-        ST7735::color_t(0xef2a2a),
-        ST7735::color_t(0x1ef851),
-        ST7735::color_t(0x003ED0),
+    const ST7789::color_t colors[] = {
+        ST7789::color_t(0xef2a2a),
+        ST7789::color_t(0x1ef851),
+        ST7789::color_t(0x003ED0),
     };
     const uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
@@ -559,34 +559,34 @@ void CurvePage::draw_all_metrics() {
  */
 void CurvePage::render(RenderMode mode) {
     (void)mode;
-    ST7735::fill_screen(ST7735::BLACK);
+    ST7789::fill_screen(ST7789::BLACK);
 
-    const ST7735::color_t voltage_color(0xef2a2a);
-    const ST7735::color_t current_color(0x1ef851);
-    const ST7735::color_t power_color(0x003ED0);
-    const ST7735::color_t time_color(0x2FC9EC);
-    const ST7735::color_t now_color(0xF2C94C);
-    const ST7735::color_t value_background(0x101010);
+    const ST7789::color_t voltage_color(0xef2a2a);
+    const ST7789::color_t current_color(0x1ef851);
+    const ST7789::color_t power_color(0x003ED0);
+    const ST7789::color_t time_color(0x2FC9EC);
+    const ST7789::color_t now_color(0xF2C94C);
+    const ST7789::color_t value_background(0x101010);
     const bool            display_selected = editing_ && edit_item_ == EditItem::Display;
     const bool            window_selected  = editing_ && edit_item_ == EditItem::TimeWindow;
 
-    ST7735::color_t mode_color      = voltage_color;
-    ST7735::color_t mode_foreground = ST7735::WHITE;
+    ST7789::color_t mode_color      = voltage_color;
+    ST7789::color_t mode_foreground = ST7789::WHITE;
     if (display_mode_ == DisplayMode::Current) {
         mode_color      = current_color;
-        mode_foreground = ST7735::BLACK;
+        mode_foreground = ST7789::BLACK;
     } else if (display_mode_ == DisplayMode::Power) {
         mode_color = power_color;
     } else if (display_mode_ == DisplayMode::All) {
-        mode_color      = ST7735::YELLOW;
-        mode_foreground = ST7735::BLACK;
+        mode_color      = ST7789::YELLOW;
+        mode_foreground = ST7789::BLACK;
     }
     draw_curve_badge(2, 1, 31, display_mode_text(), mode_foreground, mode_color, display_selected);
 
     if (display_mode_ == DisplayMode::All) {
-        draw_curve_badge(36, 1, 18, "V", ST7735::WHITE, voltage_color);
-        draw_curve_badge(57, 1, 18, "A", ST7735::BLACK, current_color);
-        draw_curve_badge(78, 1, 18, "W", ST7735::WHITE, power_color);
+        draw_curve_badge(36, 1, 18, "V", ST7789::WHITE, voltage_color);
+        draw_curve_badge(57, 1, 18, "A", ST7789::BLACK, current_color);
+        draw_curve_badge(78, 1, 18, "W", ST7789::WHITE, power_color);
     } else {
         const auto  state    = get_global_state();
         const float voltage  = state.voltage_mV / 1000.0f;
@@ -596,13 +596,13 @@ void CurvePage::render(RenderMode mode) {
                                                           : (display_mode_ == DisplayMode::Current ? current : voltage * current);
         char current_text[16];
         format_curve_value(current_text, sizeof(current_text), value);
-        draw_curve_badge(36, 1, 31, "NOW", ST7735::BLACK, now_color);
+        draw_curve_badge(36, 1, 31, "NOW", ST7789::BLACK, now_color);
         draw_curve_badge(71, 1, 34, current_text, mode_color, value_background, true, mode_color);
     }
-    draw_curve_badge(109, 1, 32, window_text(), ST7735::BLACK, time_color, window_selected);
+    draw_curve_badge(109, 1, 32, window_text(), ST7789::BLACK, time_color, window_selected);
 
     const bool output_enabled = get_global_state().flags.output_enabled;
-    ST7735::draw_image(145, 3, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
+    ST7789::draw_image(145, 3, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
                        output_enabled ? METER_CIRCLE_GREEN_HEIGHT : METER_CIRCLE_RED_HEIGHT,
                        output_enabled ? meter_circle_green_data : meter_circle_red_data);
 

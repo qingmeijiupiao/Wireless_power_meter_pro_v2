@@ -96,7 +96,7 @@ def get_project_info():
     project_name = project_match.group(1)
     return project_name, project_root
 
-def parse_partition_table():
+def parse_partition_table(build_dir):
     """解析分区表文件，获取分区信息"""
     project_root = get_project_root()
     partition_file = os.path.join(project_root, "partitions.csv")
@@ -136,9 +136,9 @@ def parse_partition_table():
                     
                     # 构建正确的文件路径（相对于项目根目录）
                     if name == 'app0':
-                        path = join(project_root, 'build', f"{project_name}.bin")
+                        path = join(build_dir, f"{project_name}.bin")
                     else:
-                        path = join(project_root, 'build', f"{name}.bin")
+                        path = join(build_dir, f"{name}.bin")
                     
                     partitions.append({
                         'name': name,
@@ -155,7 +155,7 @@ def parse_partition_table():
 def main():
     # 从CMakeLists.txt获取项目名称和根目录
     project_name, project_root = get_project_info()
-    build_dir = "build"
+    build_dir = os.environ.get("PROJECT_BUILD_DIR", join(project_root, "build"))
     output_file = f"{project_name}_merged.bin"
     chip = "esp32c6"
     
@@ -168,7 +168,7 @@ def main():
     partitions = []
 
     # 添加 bootloader（固定偏移0x1000）
-    bootloader_path = join(project_root, build_dir, "bootloader", "bootloader.bin")
+    bootloader_path = join(build_dir, "bootloader", "bootloader.bin")
     partitions.append({
         "name": "bootloader",
         "offset": 0x0,     #这里有坑 C3的bootloader偏移是0x0不是0x1000
@@ -177,7 +177,7 @@ def main():
     })
 
     # 添加分区表（固定偏移0x8000）
-    partition_table_path = join(project_root, build_dir, "partition_table", "partition-table.bin")
+    partition_table_path = join(build_dir, "partition_table", "partition-table.bin")
     partitions.append({
         "name": "partition_table",
         "offset": 0x8000,
@@ -186,7 +186,7 @@ def main():
     })
 
     # 从分区表文件解析其他分区（排除blackbox和coredump）
-    csv_partitions = parse_partition_table()
+    csv_partitions = parse_partition_table(build_dir)
     partitions.extend(csv_partitions)
 
     # 收集存在的镜像文件，并检查必需的

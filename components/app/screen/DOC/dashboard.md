@@ -7,7 +7,7 @@ sequenceDiagram
     participant UI as UIManager
     participant Page as DashboardPage
     participant State as global_state
-    participant LCD as ST7735
+    participant LCD as ST7789
     UI->>Page: render()
     Page->>State: read measurement/flags/protect
     Page->>LCD: draw static layout

@@ -26,7 +26,7 @@
 #include "power_output.h"
 #include "protect.h"
 #include "screen.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "wifi_service.h"
 #include "espnow_link.h"
 #include "espnow_service.h"
@@ -269,7 +269,7 @@ esp_err_t backlight_handler(WebServer::Request* request) {
                                    "{\"ok\":false,\"reason\":\"invalid_brightness\"}\n",
                                    strlen("{\"ok\":false,\"reason\":\"invalid_brightness\"}\n"));
         }
-        ret = ST7735::set_backlight(static_cast<uint8_t>(brightness));
+        ret = ST7789::set_backlight(static_cast<uint8_t>(brightness));
         if (ret == ESP_OK) {
             DEVICE_EVENT_I(TAG, "ui: config source=web backlight=%" PRIu32 " ip=%s",
                            static_cast<uint32_t>(brightness),
@@ -281,12 +281,12 @@ esp_err_t backlight_handler(WebServer::Request* request) {
         snprintf(response_buffer, sizeof(response_buffer),
                  "{\"ok\":%s,\"reason\":\"%s\",\"brightness\":%" PRIu32 "}\n",
                  ret == ESP_OK ? "true" : "false", ret == ESP_OK ? "ok" : esp_err_to_name(ret),
-                 static_cast<uint32_t>(ST7735::get_backlight()));
+                 static_cast<uint32_t>(ST7789::get_backlight()));
         return WebServer::send_json(request, response_buffer);
     }
 
     snprintf(response_buffer, sizeof(response_buffer), "{\"brightness\":%" PRIu32 "}\n",
-             static_cast<uint32_t>(ST7735::get_backlight()));
+             static_cast<uint32_t>(ST7789::get_backlight()));
     return WebServer::send_json(request, response_buffer);
 }
 
@@ -524,21 +524,21 @@ esp_err_t calibration_handler(WebServer::Request* request) {
 /** @brief GET /api/diagnostics，返回底层采样寄存器等诊断数据。 */
 esp_err_t diagnostics_handler(WebServer::Request* request) {
     const auto state = get_global_state();
-    if (!state.flags.lp_ina226_initialized) {
-        ESP_LOGW(TAG, "INA226 diagnostics unavailable");
+    if (!state.flags.lp_ina228_initialized) {
+        ESP_LOGW(TAG, "INA228 diagnostics unavailable");
     }
     twai_node_status_t can_status         = {};
     twai_node_record_t can_statistics     = {};
     HXC_TWAI*          can                = CanCallback::is_available() ? &CanCallback::get_can_bus() : nullptr;
     const bool         can_info_available = can != nullptr && can->get_info(&can_status, &can_statistics) == ESP_OK;
     snprintf(response_buffer, sizeof(response_buffer),
-             "{\"ina226\":{\"current_register_raw\":%d,\"voltage_register_raw\":%" PRIu32
+             "{\"ina228\":{\"current_register_raw\":%d,\"voltage_register_raw\":%" PRIu32
              ",\"available\":%s},\"can\":{\"info_"
              "available\":%s,\"state\":%" PRIu32 ",\"tx_error_count\":%" PRIu32
              ",\"rx_error_count\":%" PRIu32 ",\"bus_error_count\":%" PRIu32 ",\"bus_"
              "off_count\":%" PRIu32 ",\"tx_failed_count\":%" PRIu32 ",\"rx_overflow_count\":%" PRIu32 "}}\n",
              state.current_register_raw, static_cast<uint32_t>(state.voltage_register_raw),
-             state.flags.lp_ina226_initialized ? "true" : "false", can_info_available ? "true" : "false",
+             state.flags.lp_ina228_initialized ? "true" : "false", can_info_available ? "true" : "false",
              static_cast<uint32_t>(can_status.state), static_cast<uint32_t>(can_status.tx_error_count),
              static_cast<uint32_t>(can_status.rx_error_count), static_cast<uint32_t>(can_statistics.bus_err_num),
              can == nullptr ? static_cast<uint32_t>(0) : static_cast<uint32_t>(can->get_bus_off_count()),

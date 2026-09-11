@@ -9,6 +9,7 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "dhcpserver/dhcpserver.h"
 #include "lwip/ip_addr.h"
 #include <cstring>
 
@@ -583,10 +584,28 @@ esp_err_t WiFiManager::set_ap_ip(IP_t ip, IP_t netmask) {
         return ret;
     }
 
+    // Captive Portal 必须通过 DHCP Option 6 明确告诉客户端使用本机 DNS。
+    // 仅在 UDP 53 端口启动 DNS 服务并不会改变手机获得的 DNS 地址。
+    esp_netif_dns_info_t dns_info = {};
+    dns_info.ip.type              = IPADDR_TYPE_V4;
+    dns_info.ip.u_addr.ip4.addr   = ip.addr;
+    ret = esp_netif_set_dns_info(ap_netif_, ESP_NETIF_DNS_MAIN, &dns_info);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    dhcps_offer_t dns_offer = OFFER_DNS;
+    ret = esp_netif_dhcps_option(ap_netif_, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer,
+                                 sizeof(dns_offer));
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
     ret = esp_netif_dhcps_start(ap_netif_);
     if (ret != ESP_OK && ret != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
         return ret;
     }
+    ESP_LOGI(TAG, "AP DHCP DNS set to " IPSTR, IP2STR(&ip_info.ip));
     return ESP_OK;
 }
 

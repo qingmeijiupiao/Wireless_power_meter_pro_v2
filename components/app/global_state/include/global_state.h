@@ -18,9 +18,9 @@ struct GlobalStateFlags {
     uint32_t protect_bypassed         : 1;
     uint32_t protect_initialized      : 1;
     uint32_t lp_core_running          : 1;
-    uint32_t lp_ina226_initialized    : 1;
+    uint32_t lp_ina228_initialized    : 1;
     uint32_t lp_i2c_error             : 1;
-    uint32_t lp_ina226_read_timeout   : 1;
+    uint32_t lp_ina228_read_timeout   : 1;
     uint32_t wifi_service_initialized : 1;
     uint32_t wifi_enabled             : 1;
     uint32_t wifi_sta_connected       : 1;

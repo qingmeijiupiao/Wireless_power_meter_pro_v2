@@ -37,7 +37,7 @@
 #include "meter_v_logo.h"
 #include "meter_w_logo.h"
 #include "settings_logo.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "ota_service.h"
 #include "ui_close.h"
 #include "ui_open.h"
@@ -105,25 +105,25 @@ bool WirelessPage::handle_button(ButtonId button, ButtonEvent event) {
  */
 void WirelessPage::render(RenderMode mode) {
     (void)mode;
-    ST7735::fill_screen(ST7735::BLACK);
+    ST7789::fill_screen(ST7789::BLACK);
 
     char                    value[24];
     const WifiService::Mode wifi_mode    = WifiService::get_mode();
     const bool              provisioning = WifiService::is_provisioning();
     const char*             mode_text    = provisioning ? "AP" : wifi_mode_text(wifi_mode);
-    ST7735::color_t         mode_color =
-        wifi_mode == WifiService::Mode::STA ? ST7735::color_t(0x1ef851) : ST7735::color_t(0x2FC9EC);
+    ST7789::color_t         mode_color =
+        wifi_mode == WifiService::Mode::STA ? ST7789::color_t(0x1ef851) : ST7789::color_t(0x2FC9EC);
     if (last_result_ != ESP_OK && wifi_mode == WifiService::Mode::OFF) {
         mode_text  = "ERR";
-        mode_color = ST7735::color_t(0xef2a2a);
+        mode_color = ST7789::color_t(0xef2a2a);
     }
 
-    auto draw_status_pill = [](uint16_t x, uint16_t y, const char* text, ST7735::color_t color) {
+    auto draw_status_pill = [](uint16_t x, uint16_t y, const char* text, ST7789::color_t color) {
         constexpr uint16_t    pill_w     = 36;
         constexpr uint16_t    pill_h     = 17;
-        const ST7735::color_t background = ST7735::color_t(0x202020);
-        ST7735::fill_round_rect(x, y, pill_w, pill_h, 6, background, ST7735::BLACK);
-        ST7735::draw_string(x + 3, 2, text, color, background, DENGB16);
+        const ST7789::color_t background = ST7789::color_t(0x202020);
+        ST7789::fill_round_rect(x, y, pill_w, pill_h, 6, background, ST7789::BLACK);
+        ST7789::draw_string(x + 3, 2, text, color, background, DENGB16);
     };
 
     auto draw_remote_battery = []() {
@@ -147,12 +147,12 @@ void WirelessPage::render(RenderMode mode) {
         for (const char* cursor = text; *cursor != '\0'; ++cursor) {
             text_w += DENGB12.width_table[*cursor - ' '];
         }
-        const ST7735::color_t text_color =
-            status.battery_percent <= 20 ? ST7735::color_t(0xef2a2a) : ST7735::color_t(0x1ef851);
+        const ST7789::color_t text_color =
+            status.battery_percent <= 20 ? ST7789::color_t(0xef2a2a) : ST7789::color_t(0x1ef851);
 
-        ST7735::draw_round_rect(body_x, body_y, body_w, body_h, 3, 1, ST7735::WHITE, ST7735::BLACK);
-        ST7735::fill_rect(body_x + body_w, body_y + 4, 4, 8, ST7735::WHITE);
-        ST7735::draw_string(body_x + (body_w - text_w) / 2, body_y + 4, text, text_color, ST7735::BLACK, DENGB12);
+        ST7789::draw_round_rect(body_x, body_y, body_w, body_h, 3, 1, ST7789::WHITE, ST7789::BLACK);
+        ST7789::fill_rect(body_x + body_w, body_y + 4, 4, 8, ST7789::WHITE);
+        ST7789::draw_string(body_x + (body_w - text_w) / 2, body_y + 4, text, text_color, ST7789::BLACK, DENGB12);
     };
 
     auto draw_signal_logo = [&]() {
@@ -162,7 +162,7 @@ void WirelessPage::render(RenderMode mode) {
         constexpr uint16_t    bar_gap        = 4;
         constexpr uint16_t    bar_radius     = 3;
         constexpr uint16_t    bar_heights[4] = {14, 23, 32, 41};
-        const ST7735::color_t inactive       = ST7735::color_t(0x303030);
+        const ST7789::color_t inactive       = ST7789::color_t(0x303030);
         const bool            sta_connected =
             wifi_mode == WifiService::Mode::STA && WifiService::get_wifi_state() == WIFI_STATE_STA_CONNECTED;
         const uint8_t signal      = sta_connected ? WifiService::get_signal_percent() : 0;
@@ -178,28 +178,28 @@ void WirelessPage::render(RenderMode mode) {
             const uint16_t x = bar_x0 + i * (bar_w + bar_gap);
             const uint16_t h = bar_heights[i];
             const uint16_t y = bar_bottom - h;
-            ST7735::fill_round_rect(x, y, bar_w, h, bar_radius, i < active_bars ? ST7735::WHITE : inactive,
-                                    ST7735::BLACK);
+            ST7789::fill_round_rect(x, y, bar_w, h, bar_radius, i < active_bars ? ST7789::WHITE : inactive,
+                                    ST7789::BLACK);
         }
     };
 
     auto draw_info_row = [](uint16_t x, uint16_t y, uint16_t w, const char* label, const char* text,
-                            ST7735::color_t text_color) {
+                            ST7789::color_t text_color) {
         constexpr uint16_t    row_h       = 14;
         constexpr uint16_t    row_radius  = 5;
-        const ST7735::color_t background  = ST7735::color_t(0x202020);
-        const ST7735::color_t label_color = ST7735::color_t(0xB5B5B5);
-        ST7735::fill_round_rect(x, y, w, row_h, row_radius, background, ST7735::BLACK);
-        ST7735::draw_string(x + 4, y + 3, label, label_color, background, DENGB12);
-        ST7735::draw_string(x + 33, y + 3, text, text_color, background, DENGB12);
+        const ST7789::color_t background  = ST7789::color_t(0x202020);
+        const ST7789::color_t label_color = ST7789::color_t(0xB5B5B5);
+        ST7789::fill_round_rect(x, y, w, row_h, row_radius, background, ST7789::BLACK);
+        ST7789::draw_string(x + 4, y + 3, label, label_color, background, DENGB12);
+        ST7789::draw_string(x + 33, y + 3, text, text_color, background, DENGB12);
     };
 
-    auto draw_text_row = [](uint16_t x, uint16_t y, uint16_t w, const char* text, ST7735::color_t text_color) {
+    auto draw_text_row = [](uint16_t x, uint16_t y, uint16_t w, const char* text, ST7789::color_t text_color) {
         constexpr uint16_t    row_h      = 14;
         constexpr uint16_t    row_radius = 5;
-        const ST7735::color_t background = ST7735::color_t(0x202020);
-        ST7735::fill_round_rect(x, y, w, row_h, row_radius, background, ST7735::BLACK);
-        ST7735::draw_string(x + 4, y + 3, text, text_color, background, DENGB12);
+        const ST7789::color_t background = ST7789::color_t(0x202020);
+        ST7789::fill_round_rect(x, y, w, row_h, row_radius, background, ST7789::BLACK);
+        ST7789::draw_string(x + 4, y + 3, text, text_color, background, DENGB12);
     };
 
     auto draw_details = [&]() {
@@ -221,12 +221,12 @@ void WirelessPage::render(RenderMode mode) {
             snprintf(value, sizeof(value), "OFF");
         }
         draw_info_row(2, 19, 156, "SSID", value,
-                      wifi_mode == WifiService::Mode::OFF ? ST7735::color_t(0xB5B5B5) : ST7735::WHITE);
+                      wifi_mode == WifiService::Mode::OFF ? ST7789::color_t(0xB5B5B5) : ST7789::WHITE);
 
         snprintf(value, sizeof(value), "IP:%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,
                  static_cast<uint32_t>(ip.octet1), static_cast<uint32_t>(ip.octet2),
                  static_cast<uint32_t>(ip.octet3), static_cast<uint32_t>(ip.octet4));
-        draw_text_row(54, 42, 104, value, provisioning ? ST7735::color_t(0x1ef851) : ST7735::color_t(0x2FC9EC));
+        draw_text_row(54, 42, 104, value, provisioning ? ST7789::color_t(0x1ef851) : ST7789::color_t(0x2FC9EC));
 
         if (wifi_mode == WifiService::Mode::STA && channel_available) {
             snprintf(value, sizeof(value), "CH%" PRIu32 " %" PRIu32 "%%", static_cast<uint32_t>(channel),
@@ -240,7 +240,7 @@ void WirelessPage::render(RenderMode mode) {
         } else {
             snprintf(value, sizeof(value), "Hold AP");
         }
-        draw_info_row(54, 60, 104, "SIG", value, ST7735::color_t(0xB5B5B5));
+        draw_info_row(54, 60, 104, "SIG", value, ST7789::color_t(0xB5B5B5));
     };
 
     draw_status_pill(2, 0, mode_text, mode_color);

@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>历史日志 - Wireless Power Meter Lite</title>
+  <title>历史日志 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub">历史日志</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub">历史日志</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,16 +24,21 @@
         <a class="tab active" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
       <div class="page-head">
-        <div><h2>历史日志</h2><div class="sub" id="topStatus">查看设备保存的历史运行记录</div></div>
+        <div>
+          <h2>历史日志</h2>
+          <div class="sub" id="topStatus">查看设备保存的历史运行记录</div>
+        </div>
       </div>
       <div class="grid grid-2">
         <div class="card">
           <strong>存储状态</strong>
-          <div class="info-list" id="storageInfo"><div class="muted">读取中...</div></div>
+          <div class="info-list" id="storageInfo">
+            <div class="muted">读取中...</div>
+          </div>
           <div class="actions history-actions">
             <input class="history-limit" id="limitInput" type="number" min="1" value="100" title="拉取日志条数，超过设备容量时按全量拉取">
             <button class="secondary" id="refreshBtn">拉取日志</button>
@@ -50,7 +60,12 @@
         <div class="card-title"><strong>历史记录</strong><span class="sub" id="listMeta">默认拉取最新 100 条</span></div>
         <div style="overflow:auto">
           <table class="history-table" id="recordTable">
-            <tr><th>记录</th><th>时间戳</th><th>类型</th><th>内容</th></tr>
+            <tr>
+              <th>记录</th>
+              <th>时间戳</th>
+              <th>类型</th>
+              <th>内容</th>
+            </tr>
           </table>
         </div>
       </div>
@@ -228,4 +243,5 @@
     loadInfo().catch(e => $('topStatus').textContent = e.message);
   </script>
 </body>
+
 </html>

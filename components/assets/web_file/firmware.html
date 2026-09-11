@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>固件升级 - Wireless Power Meter Lite</title>
+  <title>固件升级 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">固件升级</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">固件升级</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,10 +24,15 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab active" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
-      <div class="page-head"><div><h2>固件升级</h2><div class="sub">上传 APP 固件到备用分区，校验通过后二次确认切换</div></div><button id="refresh" class="secondary">刷新状态</button></div>
+      <div class="page-head">
+        <div>
+          <h2>固件升级</h2>
+          <div class="sub">上传 APP 固件到备用分区，校验通过后二次确认切换</div>
+        </div><button id="refresh" class="secondary">刷新状态</button>
+      </div>
       <div class="notice">升级过程中不要断电。上传完成并不立即生效，确认版本后设备才会切换分区并重启。</div>
       <div class="grid-2">
         <div class="card stack">
@@ -37,7 +47,8 @@
       <div class="card stack">
         <strong>手动上传 APP 固件</strong>
         <div class="muted">仅上传 ESP-IDF 生成的 APP `.bin` 文件，不要上传 merged 固件。文件大小不能超过备用 APP 分区容量。</div>
-        <div class="field"><label for="firmwareFile">APP 固件文件</label><input id="firmwareFile" type="file" accept=".bin,application/octet-stream"></div>
+        <div class="field"><label for="firmwareFile">APP 固件文件</label><input id="firmwareFile" type="file"
+            accept=".bin,application/octet-stream"></div>
         <div class="actions">
           <button id="upload">上传并校验</button>
           <button id="activate" class="danger" disabled>确认升级并重启</button>
@@ -53,8 +64,13 @@
           <button id="remoteCheck" class="secondary">检查更新</button>
           <button id="remoteUpgrade" class="danger" disabled>在线升级</button>
           <span class="action-separator" aria-hidden="true"></span>
-          <a class="button-link" href="https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_lite@firmware-dist/ota/latest.bin" target="_blank" rel="noopener noreferrer">CDN 下载最新固件</a>
-          <a class="button-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite/releases" target="_blank" rel="noopener noreferrer">GitHub 历史版本</a>
+          <!-- Bring-up 阶段不提供公网跳转，待发布仓库与 firmware-dist 分支就绪后恢复。
+          <a class="button-link"
+            href="https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@firmware-dist/ota/latest.bin"
+            target="_blank" rel="noopener noreferrer">CDN 下载最新固件</a>
+          <a class="button-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2/releases"
+            target="_blank" rel="noopener noreferrer">GitHub 历史版本</a>
+          -->
         </div>
         <div class="muted" id="remoteText">尚未检查。</div>
       </div>
@@ -89,7 +105,7 @@
     async function jsonRequest(url, options) {
       const res = await fetch(url, Object.assign({ cache: 'no-store' }, options || {}));
       let data = {};
-      try { data = await res.json(); } catch (_) {}
+      try { data = await res.json(); } catch (_) { }
       if (!res.ok) {
         const error = new Error(reasonText(data.reason || `HTTP ${res.status}`));
         error.reason = data.reason || `http_${res.status}`;
@@ -176,7 +192,7 @@
         };
         xhr.onload = () => {
           let data = {};
-          try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+          try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) { }
           if (xhr.status >= 200 && xhr.status < 300 && data.ok) resolve(data);
           else reject(new Error(reasonText(data.reason || `HTTP ${xhr.status}`)));
         };
@@ -221,7 +237,7 @@
           if (ota && ota.state === 'verified') {
             $('uploadText').textContent = `上传响应中断，但设备已完成固件校验：${ota.target_version || '(版本信息不可用)'}。请核对版本后确认升级。`;
           }
-        }).catch(() => {});
+        }).catch(() => { });
       } finally {
         if (!ota || ota.state !== 'ready_to_reboot') $('upload').disabled = false;
       }
@@ -241,7 +257,7 @@
             location.reload();
             return;
           }
-        } catch (_) {}
+        } catch (_) { }
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       $('uploadText').textContent = '尚未重新连接到设备。请检查设备网络状态后刷新页面确认升级结果。';
@@ -261,7 +277,7 @@
         await waitForRestart(result.target.slot);
       } catch (e) {
         $('uploadText').textContent = `激活失败：${e.message}`;
-        await refresh().catch(() => {});
+        await refresh().catch(() => { });
       }
     };
     async function pollRemote(terminalStates) {
@@ -270,7 +286,7 @@
         try {
           await refresh();
           if (terminalStates.includes(ota.remote.state)) return ota.remote;
-        } catch (_) {}
+        } catch (_) { }
       }
       throw new Error('等待设备响应超时');
     }
@@ -301,4 +317,5 @@
     refresh().catch(e => $('topStatus').textContent = `状态读取失败：${e.message}`);
   </script>
 </body>
+
 </html>

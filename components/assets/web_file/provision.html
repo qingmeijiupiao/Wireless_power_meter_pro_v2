@@ -1,26 +1,38 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WiFi 配网</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub">WiFi 配网</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub">WiFi 配网</div>
+      </div>
       <nav>
         <a class="tab active" href="/provision.html">WiFi 配网</a>
         <a class="tab" href="/">返回主页面</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
-      <div class="page-head"><div><h2>连接到路由器</h2><div class="sub">扫描附近网络，选择 SSID 后输入密码。也可以直接手动输入。</div></div></div>
+      <div class="page-head">
+        <div>
+          <h2>连接到路由器</h2>
+          <div class="sub">扫描附近网络，选择 SSID 后输入密码。也可以直接手动输入。</div>
+        </div>
+      </div>
       <section class="card">
         <div class="row">
-          <div><strong>选择网络</strong><div class="muted">扫描不会保存任何配置。</div></div>
+          <div><strong>选择网络</strong>
+            <div class="muted">扫描不会保存任何配置。</div>
+          </div>
           <button id="scan" class="secondary" type="button">扫描附近 WiFi</button>
         </div>
         <div class="ap-list" id="apList" hidden></div>
@@ -111,4 +123,5 @@
     };
   </script>
 </body>
+
 </html>

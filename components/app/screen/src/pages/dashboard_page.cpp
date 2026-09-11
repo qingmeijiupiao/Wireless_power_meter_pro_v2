@@ -37,7 +37,7 @@
 #include "meter_v_logo.h"
 #include "meter_w_logo.h"
 #include "settings_logo.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "ota_service.h"
 #include "ui_close.h"
 #include "ui_open.h"
@@ -96,19 +96,19 @@ void DashboardPage::render(RenderMode mode) {
     const float current            = std::abs(global_state.current_uA / 1000000.0f);
 
     auto draw_static_layout = []() {
-        ST7735::fill_screen(ST7735::BLACK);
-        ST7735::draw_image(4, 4, STATIC_WIDTH, STATIC_HEIGHT, static_data);
-        ST7735::fill_rect(106, 0, 2, 80, ST7735::YELLOW);
-        ST7735::fill_rect(108, 13, 52, 2, ST7735::YELLOW);
+        ST7789::fill_screen(ST7789::BLACK);
+        ST7789::draw_image(4, 4, STATIC_WIDTH, STATIC_HEIGHT, static_data);
+        ST7789::fill_rect(106, 0, 2, 80, ST7789::YELLOW);
+        ST7789::fill_rect(108, 13, 52, 2, ST7789::YELLOW);
     };
 
     auto draw_measurements = [&]() {
         snprintf(temp_str, sizeof(temp_str), "%.3fV", voltage);
-        ST7735::draw_string(28, 4, temp_str, ST7735::color_t(0xef2a2a), ST7735::BLACK, DENGB20);
+        ST7789::draw_string(28, 4, temp_str, ST7789::color_t(0xef2a2a), ST7789::BLACK, DENGB20);
         snprintf(temp_str, sizeof(temp_str), "%.3fA", current);
-        ST7735::draw_string(28, 27, temp_str, ST7735::color_t(0x1ef851), ST7735::BLACK, DENGB20);
+        ST7789::draw_string(28, 27, temp_str, ST7789::color_t(0x1ef851), ST7789::BLACK, DENGB20);
         snprintf(temp_str, sizeof(temp_str), "%.3fW", current * voltage);
-        ST7735::draw_string(28, 49, temp_str, ST7735::color_t(0x003ED0), ST7735::BLACK, DENGB16);
+        ST7789::draw_string(28, 49, temp_str, ST7789::color_t(0x003ED0), ST7789::BLACK, DENGB16);
 
         const float temperature = global_state.board_temperature / 100.0f;
         if (temperature >= 100.0f || temperature < 0.0f) {
@@ -116,18 +116,18 @@ void DashboardPage::render(RenderMode mode) {
         } else {
             snprintf(temp_str, sizeof(temp_str), "%.1fC", temperature);
         }
-        ST7735::draw_string(28, 69, temp_str, ST7735::color_t(0xb3261e), ST7735::BLACK, DENGB12);
+        ST7789::draw_string(28, 69, temp_str, ST7789::color_t(0xb3261e), ST7789::BLACK, DENGB12);
     };
 
     auto draw_uptime = [&]() {
         const uint32_t total_seconds = (xTaskGetTickCount() * portTICK_PERIOD_MS) / 1000;
         format_duration(temp_str, sizeof(temp_str), nullptr, total_seconds);
-        ST7735::draw_string(111, 2, temp_str, ST7735::WHITE, ST7735::BLACK, DENGB12);
+        ST7789::draw_string(111, 2, temp_str, ST7789::WHITE, ST7789::BLACK, DENGB12);
     };
 
     auto draw_output_state = [&]() {
         const bool enabled = global_state_flags.output_enabled;
-        ST7735::draw_image(62, 66, enabled ? OPEN_WIDTH : CLOSE_WIDTH, enabled ? OPEN_HEIGHT : CLOSE_HEIGHT,
+        ST7789::draw_image(62, 66, enabled ? OPEN_WIDTH : CLOSE_WIDTH, enabled ? OPEN_HEIGHT : CLOSE_HEIGHT,
                            enabled ? open_data : close_data);
     };
 
@@ -162,17 +162,17 @@ void DashboardPage::draw_protect_tag(uint16_t x, uint16_t y, const char* text, P
         return;
     }
 
-    ST7735::color_t warning_background_color;
+    ST7789::color_t warning_background_color;
     warning_background_color.set_color_raw(0xFE60);
-    ST7735::color_t error_background_color;
+    ST7789::color_t error_background_color;
     error_background_color.set_color_raw(0xB123);
 
     if (state == PROTECT_STATE_PROTECT) {
-        ST7735::draw_image(x, y, ERRORRECTANGLE_WIDTH, ERRORRECTANGLE_HEIGHT, ErrorRectangle_data);
-        ST7735::draw_string(x + 5, y + 2, text, ST7735::BLACK, error_background_color, DENGB16);
+        ST7789::draw_image(x, y, ERRORRECTANGLE_WIDTH, ERRORRECTANGLE_HEIGHT, ErrorRectangle_data);
+        ST7789::draw_string(x + 5, y + 2, text, ST7789::BLACK, error_background_color, DENGB16);
     } else if (state == PROTECT_STATE_WARNING) {
-        ST7735::draw_image(x, y, WARNINGRECTANGLE_WIDTH, WARNINGRECTANGLE_HEIGHT, WarningRectangle_data);
-        ST7735::draw_string(x + 5, y + 2, text, ST7735::BLACK, warning_background_color, DENGB16);
+        ST7789::draw_image(x, y, WARNINGRECTANGLE_WIDTH, WARNINGRECTANGLE_HEIGHT, WarningRectangle_data);
+        ST7789::draw_string(x + 5, y + 2, text, ST7789::BLACK, warning_background_color, DENGB16);
     }
 }
 

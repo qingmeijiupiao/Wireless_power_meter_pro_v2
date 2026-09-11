@@ -7,7 +7,7 @@ sequenceDiagram
     participant UI as UIManager
     participant Page as BatteryPage
     participant Meter as EnergyMeter
-    participant LCD as ST7735
+    participant LCD as ST7789
     UI->>Page: render()
     Page->>Meter: snapshot()
     Page->>LCD: draw values

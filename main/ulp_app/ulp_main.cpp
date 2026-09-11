@@ -3,12 +3,10 @@
 #include "ulp_lp_core_utils.h"
 #include <cstddef>
 #include <cstdlib>
-#include "ina226.hpp"
+#include "ina228.hpp"
 #include "ulp_state.h"
 #include "ulp_Interp.hpp"
 #include "../../components/app/current_calibration/include/CurrentCalib.h"
-
-constexpr int voltage_scale = 1250; // 电压校准系数，根据手册计算得到，无需校准
 
 constexpr uint32_t LP_CPU_FREQ_HZ       = 20000000;
 constexpr uint32_t current_dead_zone_uA = 5000; // 电流死区，单位uA
@@ -24,7 +22,7 @@ volatile uint32_t voltage_uv                         LP_VAR;
 volatile uint16_t voltage_register_raw               LP_VAR;
 volatile int32_t current_uA                          LP_VAR;
 volatile int16_t shunt_register_raw                  LP_VAR;
-volatile uint16_t ina226_manufacturer_id             LP_VAR;
+volatile uint16_t ina228_manufacturer_id             LP_VAR;
 volatile int32_t Board_temperature                   LP_VAR; // 单位0.01℃
 volatile int64_t meter_uah                           LP_VAR; // 单位uAh
 volatile int64_t meter_uwh                           LP_VAR; // 单位uWh
@@ -51,10 +49,10 @@ template <typename F> void with_shared_lock_void(F&& action) {
 }
 
 /**
- * @brief 发布一组完整的 INA226 采样结果到 RTC 共享区。
+ * @brief 发布一组完整的 INA228 采样结果到 RTC 共享区。
  *
- * @param new_voltage_register_raw INA226 总线电压寄存器原始值。
- * @param new_shunt_register_raw INA226 分流电压寄存器原始值。
+ * @param new_voltage_register_raw INA228 总线电压寄存器原始值。
+ * @param new_shunt_register_raw INA228 分流电压寄存器原始值。
  * @param new_voltage_uv 换算后的总线电压，单位 uV。
  * @param new_current_uA 补偿后的电流，单位 uA。
  *
@@ -68,7 +66,7 @@ static void publish_sample(uint16_t new_voltage_register_raw, int16_t new_shunt_
         shunt_register_raw                                 = new_shunt_register_raw;
         voltage_uv                                         = new_voltage_uv;
         current_uA                                         = new_current_uA;
-        ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout = false;
+        ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = false;
     });
 }
 
@@ -93,65 +91,69 @@ static CurrentCalib::params_t read_current_calib_params() {
     return params;
 }
 
-constexpr uint32_t INA226_READ_TIMEOUT_MS = 1000;
-// INA226 reset/config/首样本等待期间置位，避免 ina226_run() 在恢复流程内再次递归触发恢复。
-static bool        ina226_configuring     = false;
+constexpr uint32_t INA228_READ_TIMEOUT_MS = 1000;
+// INA228 reset/config/首样本等待期间置位，避免 ina228_run() 在恢复流程内再次递归触发恢复。
+static bool        ina228_configuring     = false;
 
-bool ulp_ina226_init();
+bool ulp_ina228_init();
 void timer_run(void);
 
 /**
- * @brief 执行一次 INA226 采样轮询并发布成功样本。
+ * @brief 执行一次 INA228 采样轮询并发布成功样本。
  *
  * @note 读寄存器失败或转换未完成时先保留最后一次有效样本；连续失败超过
- *       INA226_READ_TIMEOUT_MS 后置位 `ulp_ina226_read_timeout`，并在非配置流程中
- *       阻塞执行 INA226 重新初始化，直到恢复首个有效样本。
+ *       INA228_READ_TIMEOUT_MS 后置位 `ulp_ina228_read_timeout`，并在非配置流程中
+ *       阻塞执行 INA228 重新初始化，直到恢复首个有效样本。
  */
-void ina226_run() {
+void ina228_run() {
     // 最近一次成功发布完整电压/电流样本的 LP 毫秒时间，用于判断数据是否陈旧。
     static uint32_t last_success_ms              = 0;
-    const auto      handle_ina226_read_not_ready = [&]() {
-        // 只在本函数内判断连续采样失败时长，避免把 INA226 私有状态暴露为文件级变量。
-        if ((now_time_ms - last_success_ms) <= INA226_READ_TIMEOUT_MS) {
+    const auto      handle_ina228_read_not_ready = [&]() {
+        // 只在本函数内判断连续采样失败时长，避免把 INA228 私有状态暴露为文件级变量。
+        if ((now_time_ms - last_success_ms) <= INA228_READ_TIMEOUT_MS) {
             return;
         }
 
         // 采样失效时保留最后一次有效样本，避免把通信异常伪装成 0V 欠压。
-        with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout = true; });
+        with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = true; });
         // 配置流程内部只标记超时，由外层 init 循环重新 reset/config，避免递归恢复。
-        if (ina226_configuring) {
+        if (ina228_configuring) {
             return;
         }
-        ulp_ina226_init();
+        ulp_ina228_init();
         last_success_ms = now_time_ms;
     };
 
-    uint16_t mask_enable = 0;
-    if (INA226::read_register(INA226::Register_enum::INA226_MASK_ENABLE, &mask_enable) != ESP_OK) {
-        handle_ina226_read_not_ready();
+    uint16_t diagnostic = 0;
+    if (INA228::read16(INA228::DIAG_ALRT, &diagnostic) != ESP_OK) {
+        handle_ina228_read_not_ready();
         return;
     }
-    if (!(mask_enable & (1 << 3))) { // CNVR 位为 0 表示本轮转换未完成，继续保留上次有效样本。
-        handle_ina226_read_not_ready();
+    if (!(diagnostic & (1 << 1))) { // CNVRF 位为 0 表示本轮转换未完成。
+        handle_ina228_read_not_ready();
         return;
     }
 
-    uint16_t new_voltage_register_raw = 0;
-    int16_t  new_shunt_register_raw   = 0;
+    uint32_t vbus_register = 0;
+    uint32_t vshunt_register = 0;
     /* 读取电压寄存器 */
-    if (INA226::read_register(INA226::Register_enum::INA226_BUS_VOLTAGE, &new_voltage_register_raw) != ESP_OK) {
-        handle_ina226_read_not_ready();
+    if (INA228::read24(INA228::VBUS, &vbus_register) != ESP_OK) {
+        handle_ina228_read_not_ready();
         return;
     }
 
     /* 读取电流寄存器 */
-    if (INA226::read_register(INA226::Register_enum::INA226_SHUNT_VOLTAGE, (uint16_t*)&new_shunt_register_raw) !=
-        ESP_OK) {
-        handle_ina226_read_not_ready();
+    if (INA228::read24(INA228::VSHUNT, &vshunt_register) != ESP_OK) {
+        handle_ina228_read_not_ready();
         return;
     }
 
-    const uint32_t new_voltage_uv    = new_voltage_register_raw * voltage_scale;
+    const uint32_t ina228_voltage_raw = INA228::decode_unsigned20(vbus_register);
+    // VBUS: 195.3125uV/LSB. VSHUNT wide range: 312.5nV/LSB; divide by 8 to retain
+    // the existing calibration domain of one raw unit per 2.5uV.
+    const uint32_t new_voltage_uv = static_cast<uint32_t>((static_cast<uint64_t>(ina228_voltage_raw) * 3125U) / 16U);
+    const uint16_t new_voltage_register_raw = static_cast<uint16_t>(new_voltage_uv / 1250U);
+    const int16_t new_shunt_register_raw = static_cast<int16_t>(INA228::decode_signed20(vshunt_register) / 8);
     int32_t        new_current_uA    = 0;
     int32_t        board_temperature = 0;
     with_shared_lock_void([&]() { board_temperature = Board_temperature; });
@@ -176,25 +178,25 @@ void ina226_run() {
 }
 
 /**
- * @brief 初始化 INA226 并等待首个有效电压样本。
+ * @brief 初始化 INA228 并等待首个有效电压样本。
  *
  * @return true 初始化、配置和首个样本读取成功；当前实现会一直重试，不返回 false。
  *
- * @note LP Core 的核心职责就是 INA226 采样，因此初始化和恢复阶段允许阻塞重试。
- *       恢复期间置位 `ulp_i2c_init_err` 与 `ulp_ina226_read_timeout`，HP 核保护逻辑会据此
- *       暂停 INA226 相关保护，避免用无效数据关断输出。
+ * @note LP Core 的核心职责就是 INA228 采样，因此初始化和恢复阶段允许阻塞重试。
+ *       恢复期间置位 `ulp_i2c_init_err` 与 `ulp_ina228_read_timeout`，HP 核保护逻辑会据此
+ *       暂停 INA228 相关保护，避免用无效数据关断输出。
  */
-bool ulp_ina226_init() {
-    ina226_configuring = true;
+bool ulp_ina228_init() {
+    ina228_configuring = true;
     with_shared_lock_void([]() {
         ulp_state_p.ulp_state_bits.ulp_i2c_init_err        = true;
-        ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout = true;
+        ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = true;
     });
 
     while (true) {
         // 恢复循环中仍维护 LP 毫秒计数，避免超时判断长期停滞。
         timer_run();
-        if (INA226::reset() != ESP_OK) {
+        if (INA228::reset() != ESP_OK) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
@@ -202,26 +204,21 @@ bool ulp_ina226_init() {
         ulp_lp_core_delay_us(MS_TO_US(5));
         timer_run();
 
-        uint16_t new_ina226_manufacturer_id = 0;
-        if (INA226::read_register(INA226::Register_enum::INA226_MANUFACTURER, &new_ina226_manufacturer_id) != ESP_OK) {
+        uint16_t new_ina228_manufacturer_id = 0;
+        if (INA228::read16(INA228::MANUFACTURER, &new_ina228_manufacturer_id) != ESP_OK ||
+            new_ina228_manufacturer_id != INA228::MANUFACTURER_ID) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
-        with_shared_lock_void([=]() { ina226_manufacturer_id = new_ina226_manufacturer_id; });
+        with_shared_lock_void([=]() { ina228_manufacturer_id = new_ina228_manufacturer_id; });
 
-        if (INA226::set_configuration(INA226::Avg_times_enum::INA226_64_samples, INA226::Timing_enum::INA226_1100_us,
-                                      INA226::Timing_enum::INA226_1100_us,
-                                      INA226::Mode_enum::INA226_SHUNT_AND_BUS_CONTINUOUS) != ESP_OK) {
+        uint16_t device_id = 0;
+        if (INA228::read16(INA228::DEVICE, &device_id) != ESP_OK ||
+            (device_id & INA228::DEVICE_ID_MASK) != INA228::DEVICE_ID) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
-
-        INA226::MaskEnable_reg_t MaskEnable_reg;
-        MaskEnable_reg.raw       = 0;
-        MaskEnable_reg.bits.LEN  = 1;
-        MaskEnable_reg.bits.APOL = 0;
-        MaskEnable_reg.bits.CNVR = 1;
-        if (INA226::write_register(INA226::Register_enum::INA226_MASK_ENABLE, MaskEnable_reg.raw) != ESP_OK) {
+        if (INA228::configure() != ESP_OK) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
@@ -229,22 +226,22 @@ bool ulp_ina226_init() {
         const uint32_t sample_wait_start_ms = now_time_ms;
         while (true) {
             timer_run();
-            ina226_run();
+            ina228_run();
             bool sample_ready = false;
             with_shared_lock_void(
-                [&]() { sample_ready = voltage_uv != 0 && !ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout; });
+                [&]() { sample_ready = voltage_uv != 0 && !ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout; });
             if (sample_ready) {
-                // 首个有效样本发布后，测量链路重新变为可靠，HP 核可恢复 INA226 相关保护。
+                // 首个有效样本发布后，测量链路重新变为可靠，HP 核可恢复 INA228 相关保护。
                 with_shared_lock_void([]() {
                     ulp_state_p.ulp_state_bits.ulp_i2c_init_err        = false;
-                    ulp_state_p.ulp_state_bits.ulp_ina226_init_ok      = true;
-                    ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout = false;
+                    ulp_state_p.ulp_state_bits.ulp_ina228_init_ok      = true;
+                    ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = false;
                 });
-                ina226_configuring = false;
+                ina228_configuring = false;
                 return true;
             }
-            if ((now_time_ms - sample_wait_start_ms) > INA226_READ_TIMEOUT_MS) {
-                // 配置成功但首样本迟迟不可用，重新 reset/config，处理 INA226 卡死或总线瞬断。
+            if ((now_time_ms - sample_wait_start_ms) > INA228_READ_TIMEOUT_MS) {
+                // 配置成功但首样本迟迟不可用，重新 reset/config，处理 INA228 卡死或总线瞬断。
                 break;
             }
             ulp_lp_core_delay_us(100);
@@ -331,8 +328,8 @@ void           update_meter() {
     with_shared_lock_void([&]() {
         sample_current_uA = current_uA;
         sample_voltage_uv = voltage_uv;
-        sample_valid      = !ulp_state_p.ulp_state_bits.ulp_ina226_read_timeout &&
-                       ulp_state_p.ulp_state_bits.ulp_ina226_init_ok && !ulp_state_p.ulp_state_bits.ulp_i2c_init_err;
+        sample_valid      = !ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout &&
+                       ulp_state_p.ulp_state_bits.ulp_ina228_init_ok && !ulp_state_p.ulp_state_bits.ulp_i2c_init_err;
     });
     if (!sample_valid) {
         // 测量降级时保留最后显示样本，但不继续用陈旧电流积分电量。
@@ -383,18 +380,18 @@ template <typename F> void app_loop_every_ms(uint32_t interval_ms, F&& action) {
 /**
  * @brief LP Core 应用入口。
  *
- * @return 不返回；INA226 初始化会阻塞重试直到成功，随后进入主循环。
+ * @return 不返回；INA228 初始化会阻塞重试直到成功，随后进入主循环。
  *
  *
- * @note 主循环持续轮询 INA226、维护毫秒计数、处理校准重载并执行电量积分。
+ * @note 主循环持续轮询 INA228、维护毫秒计数、处理校准重载并执行电量积分。
  */
 int main(void) {
     load_current_calib_params();
-    ulp_ina226_init();
+    ulp_ina228_init();
     with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_run = true; });
     while (1) {
         timer_run();
-        ina226_run();
+        ina228_run();
 
         // 检查是否需要重新加载校准参数
         app_loop_every_ms(20, check_reload_current_calib_params);

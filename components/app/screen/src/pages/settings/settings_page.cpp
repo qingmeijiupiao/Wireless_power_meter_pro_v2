@@ -37,7 +37,7 @@
 #include "meter_v_logo.h"
 #include "meter_w_logo.h"
 #include "settings_logo.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "ota_service.h"
 #include "ui_close.h"
 #include "ui_open.h"
@@ -181,8 +181,8 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
  */
 void SettingsPage::render(RenderMode mode) {
     (void)mode;
-    ST7735::fill_screen(ST7735::BLACK);
-    ST7735::draw_image(2, 16, SETTINGS_LOGO_WIDTH, SETTINGS_LOGO_HEIGHT, settings_logo_data);
+    ST7789::fill_screen(ST7789::BLACK);
+    ST7789::draw_image(2, 16, SETTINGS_LOGO_WIDTH, SETTINGS_LOGO_HEIGHT, settings_logo_data);
 
     auto draw_menu_rows = [&]() {
         constexpr uint16_t row_x      = 60;
@@ -195,19 +195,19 @@ void SettingsPage::render(RenderMode mode) {
             const uint8_t         item       = (selected_ + ITEM_COUNT + row - 1) % ITEM_COUNT;
             const uint16_t        y          = row_y0 + row * row_step;
             const bool            selected   = row == 1 && mode_ != Mode::View;
-            const ST7735::color_t background = selected ? ST7735::YELLOW : ST7735::color_t(0x202020);
-            const ST7735::color_t foreground = selected ? ST7735::BLACK : ST7735::WHITE;
-            ST7735::fill_round_rect(row_x, y, row_w, row_h, row_radius, background, ST7735::BLACK);
-            ST7735::draw_string(row_x + 4, y + 5, item_name(item), foreground, background, DENGB16);
+            const ST7789::color_t background = selected ? ST7789::YELLOW : ST7789::color_t(0x202020);
+            const ST7789::color_t foreground = selected ? ST7789::BLACK : ST7789::WHITE;
+            ST7789::fill_round_rect(row_x, y, row_w, row_h, row_radius, background, ST7789::BLACK);
+            ST7789::draw_string(row_x + 4, y + 5, item_name(item), foreground, background, DENGB16);
             const char* value = item_value(item);
             if (item_type(item) == ItemType::Detail) {
                 constexpr uint16_t icon_size = 18;
                 const uint16_t     icon_x    = row_x + row_w - icon_size - 2;
                 const uint16_t     icon_y    = y + 2;
-                ST7735::draw_round_rect(icon_x, icon_y, icon_size, icon_size, icon_size / 2, 1, foreground, background);
-                ST7735::draw_string(icon_x + 7, icon_y + 2, "i", foreground, background, DENGB16);
+                ST7789::draw_round_rect(icon_x, icon_y, icon_size, icon_size, icon_size / 2, 1, foreground, background);
+                ST7789::draw_string(icon_x + 7, icon_y + 2, "i", foreground, background, DENGB16);
             } else if (value[0] != '\0') {
-                ST7735::draw_string(row_x + 70, y + 5, value, foreground, background, DENGB16);
+                ST7789::draw_string(row_x + 70, y + 5, value, foreground, background, DENGB16);
             }
         }
     };
@@ -507,16 +507,16 @@ void SettingsPage::build_dialog_content() {
 /** @brief 绘制设置项弹窗。 */
 void SettingsPage::draw_dialog_overlay() {
     build_dialog_content();
-    const ST7735::color_t panel = ST7735::BLACK;
-    const ST7735::color_t muted = ST7735::color_t(0xB5B5B5);
+    const ST7789::color_t panel = ST7789::BLACK;
+    const ST7789::color_t muted = ST7789::color_t(0xB5B5B5);
 
-    ST7735::fill_round_rect(8, 2, 144, 76, 6, panel, ST7735::BLACK);
-    ST7735::draw_round_rect(8, 2, 144, 76, 6, 1, ST7735::YELLOW, ST7735::BLACK);
-    ST7735::draw_string(14, 5, item_name(selected_), ST7735::YELLOW, panel, DENGB12);
-    ST7735::draw_string(14, 19, detail_lines_[0], ST7735::WHITE, panel, DENGB12);
-    ST7735::draw_string(14, 33, detail_lines_[1], ST7735::WHITE, panel, DENGB12);
-    ST7735::draw_string(14, 47, detail_lines_[2], muted, panel, DENGB12);
-    ST7735::draw_string(14, 61, detail_lines_[3], muted, panel, DENGB12);
+    ST7789::fill_round_rect(8, 2, 144, 76, 6, panel, ST7789::BLACK);
+    ST7789::draw_round_rect(8, 2, 144, 76, 6, 1, ST7789::YELLOW, ST7789::BLACK);
+    ST7789::draw_string(14, 5, item_name(selected_), ST7789::YELLOW, panel, DENGB12);
+    ST7789::draw_string(14, 19, detail_lines_[0], ST7789::WHITE, panel, DENGB12);
+    ST7789::draw_string(14, 33, detail_lines_[1], ST7789::WHITE, panel, DENGB12);
+    ST7789::draw_string(14, 47, detail_lines_[2], muted, panel, DENGB12);
+    ST7789::draw_string(14, 61, detail_lines_[3], muted, panel, DENGB12);
 }
 
 /** @brief 修改当前选中的设置项。 */
@@ -529,7 +529,7 @@ void SettingsPage::adjust_selected_item() {
             ESP_LOGE(TAG, "failed to persist rotation setting");
             break;
         }
-        ST7735::set_rotation(rotation_180_ ? ST7735::Rotation::HorizontalMirror : ST7735::Rotation::Horizontal);
+        ST7789::set_rotation(rotation_180_ ? ST7789::Rotation::HorizontalMirror : ST7789::Rotation::Horizontal);
         DEVICE_EVENT_I(TAG, "ui: config source=screen rotate_180=%" PRIu32,
                        static_cast<uint32_t>(rotation_180_ ? 1U : 0U));
         break;
@@ -543,7 +543,7 @@ void SettingsPage::adjust_selected_item() {
             backlight_level_ = ui_config_get_backlight_level();
             break;
         }
-        ST7735::set_backlight(backlight_value_from_level(backlight_level_));
+        ST7789::set_backlight(backlight_value_from_level(backlight_level_));
         DEVICE_EVENT_I(TAG, "ui: config source=screen backlight_level=%" PRIu32,
                        static_cast<uint32_t>(backlight_level_));
         break;

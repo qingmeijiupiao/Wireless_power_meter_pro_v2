@@ -42,9 +42,9 @@ void update_main_state(TimerHandle_t xTimer) {
         state.board_temperature    = board_temperature;
         state.chip_temperature     = chip_temperature;
         state.flags.lp_core_running        = snapshot.state.ulp_state_bits.ulp_run;
-        state.flags.lp_ina226_initialized  = snapshot.state.ulp_state_bits.ulp_ina226_init_ok;
+        state.flags.lp_ina228_initialized  = snapshot.state.ulp_state_bits.ulp_ina228_init_ok;
         state.flags.lp_i2c_error           = snapshot.state.ulp_state_bits.ulp_i2c_init_err;
-        state.flags.lp_ina226_read_timeout = snapshot.state.ulp_state_bits.ulp_ina226_read_timeout;
+        state.flags.lp_ina228_read_timeout = snapshot.state.ulp_state_bits.ulp_ina228_read_timeout;
     });
     // GlobalState 保存固定大小的展示值；精确累计值交给 energy_meter 用于会话差分。
     EnergyMeter::update_lifetime(snapshot.meter_uah, snapshot.meter_uwh);

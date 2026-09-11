@@ -8,7 +8,7 @@ sequenceDiagram
     participant Page as WirelessPage
     participant WiFi as WifiService
     participant Now as EspNowService
-    participant LCD as ST7735
+    participant LCD as ST7789
     UI->>Page: render()
     Page->>WiFi: query mode/IP/channel/signal
     Page->>Now: query remote battery

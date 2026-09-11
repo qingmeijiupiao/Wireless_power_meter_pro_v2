@@ -1,6 +1,6 @@
 # Fonts
 
-点阵字体资源模块，提供 DENGB 字体家族的多种字高变体（12/16/20/默认），以编译期常量数组形式存储字形灰度数据和宽度表，供 `st7735_driver` 渲染文本。
+点阵字体资源模块，提供 DENGB 字体家族的多种字高变体（12/16/20/默认），以编译期常量数组形式存储字形灰度数据和宽度表，供 `st7789_driver` 渲染文本。
 
 ## 模块特点
 
@@ -18,8 +18,8 @@ flowchart LR
     Tool --> Preview["Front_preview/*_preview.bmp"]
     Header --> CMake["Fonts 组件编译"]
     Source --> CMake
-    CMake --> ST7735["ST7735::draw_string()"]
-    ST7735 --> LCD["TFT 屏幕文本渲染"]
+    CMake --> ST7789["ST7789::draw_string()"]
+    ST7789 --> LCD["TFT 屏幕文本渲染"]
 ```
 
 ## 文件结构
@@ -36,7 +36,7 @@ Fonts/
 ```cpp
 #include "DENGB16.h"
 
-ST7735::draw_string(0, 0, "Hello", ST7735::WHITE, ST7735::BLACK, DENGB16);
+ST7789::draw_string(0, 0, "Hello", ST7789::WHITE, ST7789::BLACK, DENGB16);
 ```
 
 ## 字体生成工具
@@ -85,7 +85,7 @@ DENGB16/
 - 每字符像素数据：`font_height × advance_width` 字节，灰度值 0–255
 - 字体高度：根据整套字符相对统一基线的最大上伸和下伸范围计算，不再逐字符贴底对齐
 - 预览图：每行包含一条灰色基线，便于检查下伸字母和符号的垂直位置
-- 渲染时 `st7735_driver` 对灰度值做 RGB565 插值，实现抗锯齿效果
+- 渲染时 `st7789_driver` 对灰度值做 RGB565 插值，实现抗锯齿效果
 
 ## 环境与依赖
 
@@ -94,7 +94,7 @@ DENGB16/
 
 工程内直接依赖：
 
-- [`st7735_driver`](../../bsp/st7735_driver/README.md)（`bsp`）
+- [`st7789_driver`](../../bsp/st7789_driver/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

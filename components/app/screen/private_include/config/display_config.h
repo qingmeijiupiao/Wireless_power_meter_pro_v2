@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #include "HXC_NVS.h"
-#include "st7735.h"
+#include "st7789.h"
 
 namespace SCREEN {
 
@@ -29,9 +29,9 @@ static constexpr uint8_t DEFAULT_BACKLIGHT_LEVEL = 3;
 uint8_t normalize_backlight_level(uint8_t level);
 
 /**
- * @brief 将 n 档背光映射为 ST7735 背光值
+ * @brief 将 n 档背光映射为 ST7789 背光值
  * @param level 背光档位，范围 1-BACKLIGHT_LEVEL_COUNT
- * @return ST7735 背光值，范围 0-255
+ * @return ST7789 背光值，范围 0-255
  */
 uint8_t backlight_value_from_level(uint8_t level);
 

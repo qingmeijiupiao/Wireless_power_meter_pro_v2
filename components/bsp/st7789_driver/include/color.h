@@ -9,7 +9,7 @@
 #define __COLOR_H__
 
 #include <stdint.h>
-namespace ST7735 {
+namespace ST7789 {
 class color_t {
   public:
     /** @brief `color_t` 接口。 */
@@ -51,6 +51,6 @@ const color_t GREEN(0, 255, 0);     /**< 绿色 */
 const color_t BLUE(0, 0, 255);      /**< 蓝色 */
 const color_t YELLOW(255, 255, 0);  /**< 黄色 */
 
-} // namespace ST7735
+} // namespace ST7789
 
 #endif

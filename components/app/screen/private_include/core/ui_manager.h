@@ -99,6 +99,7 @@ class UIManager {
      * @brief 切换到下一个页面
      */
     void next_page();
+    void previous_page();
 
     /** 按键事件队列，生产者为 Button 任务，消费者为 screen_task */
     QueueHandle_t event_queue_ = nullptr;

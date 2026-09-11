@@ -1,5 +1,5 @@
 # ────────────────────────────────────────────────────────
-#  功率计 Lite 固件自动发布流水线
+#  功率计 Pro V2 固件自动发布流水线
 # ────────────────────────────────────────────────────────
 #  触发条件：推送 v* 格式的 tag（如 v1.0、v1.2.3）
 #  功能流程：
@@ -8,7 +8,7 @@
 #    3. 将固件和元数据推送到 firmware-dist 分支（CDN 分发）
 #    4. 创建 GitHub Release 并上传附件
 # ────────────────────────────────────────────────────────
-name: 功率计 Lite Release
+name: 功率计 Pro V2 Release
 
 on:
   push:
@@ -78,8 +78,8 @@ jobs:
       - name: Rename firmware for release
         run: |
           VERSION="${{ steps.version.outputs.full }}"
-          cp build/Wireless_power_meter_lite.bin "Wireless_power_meter_lite_app_v${VERSION}.bin"
-          cp Wireless_power_meter_lite_merged.bin "Wireless_power_meter_lite_merged_v${VERSION}.bin"
+          cp build/Wireless_power_meter_pro_v2.bin "Wireless_power_meter_pro_v2_app_v${VERSION}.bin"
+          cp Wireless_power_meter_pro_v2_merged.bin "Wireless_power_meter_pro_v2_merged_v${VERSION}.bin"
 
       # ──────────────────────────────────────────────
       #  步骤5：检出 firmware-dist 分支
@@ -141,8 +141,8 @@ jobs:
           set -euo pipefail
 
           # ── 1. 复制版本固件，并更新供网页手动下载的固定 APP 固件路径 ──
-          APP_NAME="Wireless_power_meter_lite_app_v${VERSION}.bin"
-          MERGED_NAME="Wireless_power_meter_lite_merged_v${VERSION}.bin"
+          APP_NAME="Wireless_power_meter_pro_v2_app_v${VERSION}.bin"
+          MERGED_NAME="Wireless_power_meter_pro_v2_merged_v${VERSION}.bin"
           DIST_DIR="firmware-dist/firmware/v${VERSION}"
 
           mkdir -p "${DIST_DIR}" firmware-dist/ota "firmware-dist/launchpad/v${VERSION}"
@@ -182,11 +182,11 @@ jobs:
           cat > "firmware-dist/launchpad/v${VERSION}/config.toml" <<EOF
           esp_toml_version = 1.0
           firmware_images_url = "${CDN_ROOT}/firmware/v${VERSION}/"
-          supported_apps = ["Wireless_power_meter_lite"]
+          supported_apps = ["Wireless_power_meter_pro_v2"]
 
-          ["Wireless_power_meter_lite"]
+          ["Wireless_power_meter_pro_v2"]
           image.esp32c6 = "${MERGED_NAME}"
-          description = "lite版本功率计固件-手动烧录"
+          description = "Pro V2 版本功率计固件-手动烧录"
           android_app_url = ""
           ios_app_url = ""
           chipsets = ["esp32c6"]
@@ -245,7 +245,7 @@ jobs:
 
           {
             # 版本标题
-            echo "## 无线功率计 Lite 固件 v${{ steps.version.outputs.full }}"
+            echo "## 无线功率计 Pro V2 固件 v${{ steps.version.outputs.full }}"
             echo
             echo "### 版本变更"
             echo
@@ -305,8 +305,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            Wireless_power_meter_lite_app_v*.bin
-            Wireless_power_meter_lite_merged_v*.bin
+            Wireless_power_meter_pro_v2_app_v*.bin
+            Wireless_power_meter_pro_v2_merged_v*.bin
             ${{ steps.distribution.outputs.config_path }}
           body_path: release_notes.md
         env:
@@ -317,8 +317,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            Wireless_power_meter_lite_app_v*.bin
-            Wireless_power_meter_lite_merged_v*.bin
+            Wireless_power_meter_pro_v2_app_v*.bin
+            Wireless_power_meter_pro_v2_merged_v*.bin
           body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

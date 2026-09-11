@@ -1,6 +1,6 @@
 # ui_resources
 
-UI 图形资源模块，以 `const uint16_t[]` RGB565 小端序数组形式存储界面元素图片，供 `st7735_driver` 的 `draw_image()` 直接调用。
+UI 图形资源模块，以 `const uint16_t[]` RGB565 小端序数组形式存储界面元素图片，供 `st7789_driver` 的 `draw_image()` 直接调用。
 
 ## 资源列表
 
@@ -26,7 +26,7 @@ flowchart LR
     Tool --> Header["include/*.h<br/>WIDTH / HEIGHT / data[]"]
     Header --> CMake["ui_resources 组件"]
     CMake --> Screen["screen_task"]
-    Screen --> Driver["ST7735::draw_image()"]
+    Screen --> Driver["ST7789::draw_image()"]
     Driver --> LCD["160x80 TFT"]
 ```
 
@@ -35,8 +35,8 @@ flowchart LR
 ```cpp
 #include "ui_close.h"
 
-ST7735::draw_image(x, y, CLOSE_WIDTH, CLOSE_HEIGHT, close_data);
-ST7735::sync_buffers();
+ST7789::draw_image(x, y, CLOSE_WIDTH, CLOSE_HEIGHT, close_data);
+ST7789::sync_buffers();
 ```
 
 ## 图片转换工具
@@ -80,7 +80,7 @@ python scripts/image_converter.py -n ErrorRectangle assets/error_rect.png includ
 
 ## 环境与依赖
 
-- **使用方**：`screen` 通过 `st7735_driver::draw_image()` 绘制资源。
+- **使用方**：`screen` 通过 `st7789_driver::draw_image()` 绘制资源。
 
 <!-- dependency-links:start -->
 ## 依赖导航

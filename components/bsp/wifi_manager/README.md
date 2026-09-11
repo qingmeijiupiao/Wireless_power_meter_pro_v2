@@ -62,7 +62,7 @@ wifi.stop();
 ```cpp
 auto& wifi = WiFiManager::instance();
 ESP_ERROR_CHECK(wifi.init());
-ESP_ERROR_CHECK(wifi.start_ap("WPM-Lite", "", WIFI_AP_MAX_CONN, 1));
+ESP_ERROR_CHECK(wifi.start_ap("WPM-PRO-V2", "", WIFI_AP_MAX_CONN, 1));
 ```
 
 ## API 参考

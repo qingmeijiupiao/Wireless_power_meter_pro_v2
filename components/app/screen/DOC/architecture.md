@@ -40,7 +40,7 @@ sequenceDiagram
     participant Screen as screen_task
     participant Manager as UIManager
     participant Page as Current Page
-    participant LCD as ST7735
+    participant LCD as ST7789
     App->>Screen: create task
     Screen->>LCD: init and show logo
     Screen->>Manager: init registry and queue
@@ -91,7 +91,7 @@ flowchart TB
     Core --> Abstract["Page abstraction"]
     Registry["page_registry.cpp"] --> Pages["concrete pages"]
     Pages --> Services["application/middleware services"]
-    Pages --> Driver["ST7735"]
+    Pages --> Driver["ST7789"]
     Widgets["widgets"] --> Driver
     Config["config"] --> NVS["HXC_NVS"]
 ```

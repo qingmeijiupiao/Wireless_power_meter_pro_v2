@@ -4,24 +4,24 @@
 #include <cstdint>
 
 /**
- * @brief 判断 INA226 电压/电流测量链路当前是否可靠。
+ * @brief 判断 INA228 电压/电流测量链路当前是否可靠。
  *
- * @return true INA226 已初始化且没有 I2C 初始化错误、读取超时；false 测量处于降级或恢复中。
+ * @return true INA228 已初始化且没有 I2C 初始化错误、读取超时；false 测量处于降级或恢复中。
  *
- * @note OVP、UVP、OCP 和 MOS 诊断都依赖 INA226。测量不可靠时这些逻辑不得触发输出关断，
+ * @note OVP、UVP、OCP 和 MOS 诊断都依赖 INA228。测量不可靠时这些逻辑不得触发输出关断，
  *       只能记录降级状态，避免把通信异常误判为真实电气故障。
  */
-bool protect_ina226_measurement_reliable();
+bool protect_ina228_measurement_reliable();
 
 /**
- * @brief 判断保护通道是否依赖 INA226 测量数据。
+ * @brief 判断保护通道是否依赖 INA228 测量数据。
  *
  * @param channel 保护通道编号：0=OTP，1=OVP，2=UVP，3=OCP。
- * @return true 通道依赖 INA226；false 通道不依赖 INA226。
+ * @return true 通道依赖 INA228；false 通道不依赖 INA228。
  *
- * @note 该接口用于选择触发迟滞时长和测量可靠性门控。OTP 使用温度传感器，不受 INA226 降级影响。
+ * @note 该接口用于选择触发迟滞时长和测量可靠性门控。OTP 使用温度传感器，不受 INA228 降级影响。
  */
-bool protect_is_ina226_channel(uint32_t channel);
+bool protect_is_ina228_channel(uint32_t channel);
 
 /**
  * @brief 启动 MOS 损坏诊断任务。

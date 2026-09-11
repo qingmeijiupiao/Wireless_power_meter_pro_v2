@@ -2,7 +2,7 @@
 
 ## 概述
 
-本组件实现了 INA226 大电流功率计的**正交解耦标定与温度补偿**方案，运行在 ESP32 的 LP（ULP）协处理器上。方案将电流测量的误差源拆分为两个独立的维度：
+本组件实现了 INA228 大电流功率计的**正交解耦标定与温度补偿**方案，运行在 ESP32 的 LP（ULP）协处理器上。方案将电流测量的误差源拆分为两个独立的维度：
 
 - **电流域（冷态非线性）**：通过基准线性系数 + 6 点分段线性插值修正
 - **温度域（温漂）**：通过线性温漂系数进行 ppm 级全局补偿
@@ -11,7 +11,7 @@
 
 | 挑战 | 描述 |
 |------|------|
-| 低端非线性与死区 | 0~1A 区间受 INA226 失调电压和底噪影响，呈现非线性 |
+| 低端非线性与死区 | 0~1A 区间受 INA228 失调电压和底噪影响，呈现非线性 |
 | 高端温漂 | 15A~25A 持续工作时分流器发热（60℃~80℃），正温度系数导致阻值变大，相同电流下检测电压偏高，读数偏大 |
 | 瞬态热延迟 | 40A 瞬态电流下分流器仍为冷态，若应用高温补偿则会产生过度补偿 |
 | ULP 算力瓶颈 | LP 核心无硬件浮点单元，内存极小，无法运行复杂浮点运算或重型容器 |
@@ -20,7 +20,7 @@
 
 ### 物理世界完整模型
 
-INA226 读取的 ADC 原始电压：
+INA228 读取的 ADC 原始电压：
 
 $$V_{ADC} = [I \cdot R(T) + V_{Seebeck}(\nabla T) + V_{Offset}] \cdot (1 + E_{Gain}) + V_{Noise}$$
 
@@ -73,7 +73,7 @@ current_final = current - temp_comp_uA
 
 ```c
 struct point_t {
-    int16_t register_value;     // INA226 Shunt 寄存器原始值
+    int16_t register_value;     // INA228 Shunt 寄存器原始值
     int16_t offset_current_100uA;  // 该寄存器值对应的电流偏移修正量（单位：100uA）
 } __attribute__((packed, aligned(4)));
 
@@ -96,7 +96,7 @@ struct params_t {
 
 ### `current_base_K` 的物理含义
 
-INA226 Shunt 电压寄存器的 1 LSB = 2.5 μV。`current_base_K` 表示 **Shunt 寄存器每增加 1 LSB 时，对应的电流增量**，单位为 `uA/LSB`。
+INA228 Shunt 电压寄存器的 1 LSB = 2.5 μV。`current_base_K` 表示 **Shunt 寄存器每增加 1 LSB 时，对应的电流增量**，单位为 `uA/LSB`。
 
 对于真实采样电阻值为 $R_{shunt}$ 的合金分流器，有：
 
@@ -180,7 +180,7 @@ Rshunt_mΩ = 2,500 / 1114 ≈ 2.244mΩ
 
 **示例 3：结合真实电流和寄存器值校准**
 
-如果万用表测得真实电流为 `1.23A`，INA226 Shunt 原始寄存器值为 `1104`：
+如果万用表测得真实电流为 `1.23A`，INA228 Shunt 原始寄存器值为 `1104`：
 
 ```text
 真实电流 = 1.23A = 1,230,000uA
@@ -193,16 +193,16 @@ current_base_K = 1,230,000 / 1104 ≈ 1114
 Rshunt_mΩ = 2500 / 1114 ≈ 2.244mΩ
 ```
 
-也就是说，这次单点校准相当于告诉固件：当前整条采样链路（分流器真实阻值、焊接电阻、PCB 铜箔、电压采样路径和 INA226 增益误差综合之后）等效为约 `2.244mΩ`。
+也就是说，这次单点校准相当于告诉固件：当前整条采样链路（分流器真实阻值、焊接电阻、PCB 铜箔、电压采样路径和 INA228 增益误差综合之后）等效为约 `2.244mΩ`。
 
-> 注意：通过真实电流和寄存器值算出的 `current_base_K` 不一定只反映分流器本体阻值，它还会吸收焊接、电路走线、INA226 增益误差等整条测量链路的一阶误差。因此工程上应优先使用实测电流法校准；只有在没有电流校准条件时，才建议根据标称采样电阻值估算。
+> 注意：通过真实电流和寄存器值算出的 `current_base_K` 不一定只反映分流器本体阻值，它还会吸收焊接、电路走线、INA228 增益误差等整条测量链路的一阶误差。因此工程上应优先使用实测电流法校准；只有在没有电流校准条件时，才建议根据标称采样电阻值估算。
 
 ## 算法运行流程
 
-完整算法在 LP 核心的 `ina226_run()` 中执行（`ulp_main.cpp`）：
+完整算法在 LP 核心的 `ina228_run()` 中执行（`ulp_main.cpp`）：
 
 ```
-1. 读取 INA226 Shunt Voltage 寄存器 → shunt_register_raw
+1. 读取 INA228 Shunt Voltage 寄存器 → shunt_register_raw
 2. 死区判断：|shunt_register_raw × current_base_K| < current_dead_zone_uA → current_uA = 0
 3. 线性基准 + 插值修正：
    no_temp_cali_current_uA = current_base_K × shunt_register_raw
@@ -229,7 +229,7 @@ flowchart TD
     NVS["NVS Flash"] -->|".read()"| HP["CurrentCalib::params_data<br/>(HP 核心, HXC::NVS_DATA)"]
     HP -->|"写入 RTC 共享内存"| RTC["current_calib_params<br/>(LP 核心, LP_VAR)"]
     RTC -->|"load_current_calib_params()"| INTERP["current_interp<br/>(6点插值表)"]
-    INTERP -->|"ina226_run() 每次循环"| OUT["current_uA<br/>(最终输出)"]
+    INTERP -->|"ina228_run() 每次循环"| OUT["current_uA<br/>(最终输出)"]
     HP -->|"calibration_params 命令"| DISPLAY["串口显示"]
 ```
 
@@ -263,7 +263,7 @@ factory_mode
 2. **通电读取**：给设备上电，让负载工作（任何负载都行，LED 灯带、电机、电阻丝都可以，只要电流稳定）
 3. **同时读两个数**：
    - 万用表显示的真实电流（如 `1.23A`）
-   - 串口执行 `ina226_register`，记下输出的 `current` 值（即 `shunt_register_raw`）
+   - 串口执行 `ina228_register`，记下输出的 `current` 值（即 `shunt_register_raw`）
 4. **计算**：
 
 ```
@@ -297,7 +297,7 @@ calibration_basek <计算结果>
 3. **快速读数**：
 
 ```
-ina226_register        # 读取当前 shunt_register_raw
+ina228_register        # 读取当前 shunt_register_raw
 ```
 
 4. **计算并写入**：

@@ -7,12 +7,12 @@
  */
 #include "widgets/ui_chrome.h"
 
-#include "st7735.h"
+#include "st7789.h"
 
 namespace SCREEN {
 
 void draw_edit_indicator() {
-    ST7735::fill_rect(0, 0, ST7735::WIDTH, 1, ST7735::YELLOW);
+    ST7789::fill_rect(0, 0, ST7789::WIDTH, 1, ST7789::YELLOW);
 }
 
 } // namespace SCREEN

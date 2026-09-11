@@ -70,8 +70,8 @@ classDiagram
 | `meter_mwh` | `float` | mWh | LP 核累计能量的展示值 |
 | `board_temperature` | `int16_t` | 0.01 摄氏度 | TMP235 板载传感器 |
 | `chip_temperature` | `int16_t` | 0.01 摄氏度 | ESP 芯片内部传感器 |
-| `current_register_raw` | `int16_t` | 原始值 | INA226 分流电压寄存器 |
-| `voltage_register_raw` | `uint16_t` | 原始值 | INA226 总线电压寄存器 |
+| `current_register_raw` | `int16_t` | 原始值 | INA228 分流电压寄存器 |
+| `voltage_register_raw` | `uint16_t` | 原始值 | INA228 总线电压寄存器 |
 
 `static_assert(sizeof(GlobalState) == 28)` 会在编译期检查结构大小。修改字段时不要只改 README，也要确认对齐和黑匣子快照是否仍然符合预期。
 
@@ -86,9 +86,9 @@ classDiagram
 | `protect_bypassed` | `protect` | 是否绕过保护 |
 | `protect_initialized` | `protect` | 保护状态机是否已初始化 |
 | `lp_core_running` | `app_main` | LP 核是否已运行 |
-| `lp_ina226_initialized` | `app_main` | LP 核侧 INA226 是否初始化成功 |
+| `lp_ina228_initialized` | `app_main` | LP 核侧 INA228 是否初始化成功 |
 | `lp_i2c_error` | `app_main` | LP 核 I2C 初始化或访问是否出现错误 |
-| `lp_ina226_read_timeout` | `app_main` | INA226 连续 1 秒没有完整采样 |
+| `lp_ina228_read_timeout` | `app_main` | INA228 连续 1 秒没有完整采样 |
 | `wifi_service_initialized` | `wifi_service` | WiFi 服务是否初始化 |
 | `wifi_enabled` | `wifi_service` | WiFi 是否启用 |
 | `wifi_sta_connected` | `wifi_service` | STA 是否连接路由器 |
@@ -99,7 +99,7 @@ classDiagram
 | `screen_initialized` | `screen` | 屏幕是否初始化完成 |
 | `blackbox_enabled` | `app_main` | 黑匣子是否可用 |
 
-> `lp_ina226_read_timeout` 置位时 LP 核会清零电压、电流，复用 UVP 链路执行保守关断；完整采样恢复后自动清零。
+> `lp_ina228_read_timeout` 置位时 LP 核会清零电压、电流，复用 UVP 链路执行保守关断；完整采样恢复后自动清零。
 
 ## 使用方式
 
@@ -124,7 +124,7 @@ update_global_state([](GlobalState& state) {
 - `update_global_state()` 的 action 域内持有全局状态锁，只做轻量字段读写，不要执行日志、绘图、网络发送、NVS 等耗时操作。
 - 单位不要混用：温度是 `0.01 摄氏度`，电流是 `uA`，电压是 `mV`。
 - `energy_meter` 保留精确的 `int64_t uAh/uWh` HP 缓存，供可重置计量会话使用。
-- INA226 原始寄存器随主状态一起同步，业务模块不会绕过跨核锁直接读取 RTC 内存。
+- INA228 原始寄存器随主状态一起同步，业务模块不会绕过跨核锁直接读取 RTC 内存。
 
 ## 环境与依赖
 

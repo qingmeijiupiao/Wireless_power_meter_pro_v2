@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>控制设置 - Wireless Power Meter Lite</title>
+  <title>控制设置 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">控制设置</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">控制设置</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,32 +24,52 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
-      <div class="page-head"><div><h2>控制设置</h2><div class="sub">调整输出、保护、背光、CAN 和网络相关设置</div></div></div>
+      <div class="page-head">
+        <div>
+          <h2>控制设置</h2>
+          <div class="sub">调整输出、保护、背光、CAN 和网络相关设置</div>
+        </div>
+      </div>
       <div class="stack">
         <div class="card stack">
           <strong>设备控制</strong>
           <div class="row"><span>输出开关</span><button id="outputBtn">读取中</button></div>
           <div class="row"><span>保护功能</span><button id="protectToggle">读取中</button></div>
           <div class="notice" id="protectNotice" hidden>保护功能关闭后，设备仍会显示告警状态，但不会因为保护触发而自动阻止或关闭输出。</div>
-          <div class="field"><label class="label" for="backlight">屏幕背光</label><input id="backlight" type="range" min="0" max="255"><div class="sub" id="backlightText">--</div></div>
-          <div class="field"><label class="label" for="startLogoMs">开机画面时长</label><input id="startLogoMs" type="number" min="0" max="4294967295" step="1"><div class="sub">单位：毫秒，设置为 0 时关闭开机画面，重启后生效。</div></div>
+          <div class="field"><label class="label" for="backlight">屏幕背光</label><input id="backlight" type="range" min="0"
+              max="255">
+            <div class="sub" id="backlightText">--</div>
+          </div>
+          <div class="field"><label class="label" for="startLogoMs">开机画面时长</label><input id="startLogoMs" type="number"
+              min="0" max="4294967295" step="1">
+            <div class="sub">单位：毫秒，设置为 0 时关闭开机画面，重启后生效。</div>
+          </div>
           <button id="saveStartLogo">保存开机画面设置</button>
           <div class="muted" id="controlMsg"></div>
         </div>
         <div class="card stack">
           <strong>CAN 设置</strong>
-          <div class="field"><label class="label" for="canBaud">波特率</label><select id="canBaud"><option value="125000">125 kbps</option><option value="250000">250 kbps</option><option value="500000">500 kbps</option><option value="800000">800 kbps</option><option value="1000000">1 Mbps</option></select></div>
-          <div class="field"><label class="label" for="canId">设备 ID</label><input id="canId" placeholder="0x400 或 1024"></div>
+          <div class="field"><label class="label" for="canBaud">波特率</label><select id="canBaud">
+              <option value="125000">125 kbps</option>
+              <option value="250000">250 kbps</option>
+              <option value="500000">500 kbps</option>
+              <option value="800000">800 kbps</option>
+              <option value="1000000">1 Mbps</option>
+            </select></div>
+          <div class="field"><label class="label" for="canId">设备 ID</label><input id="canId" placeholder="0x400 或 1024">
+          </div>
           <button id="saveCan">保存 CAN 设置</button>
           <div class="muted">CAN 参数可能需要重启或重新初始化后完全生效。</div>
         </div>
         <div class="card stack">
           <strong>保护阈值</strong>
           <div class="muted">修改后立即生效并保存。阈值最多保留三位小数，恢复阈值必须满足迟滞顺序。</div>
-          <div style="overflow:auto"><table id="protectThresholdTable"></table></div>
+          <div style="overflow:auto">
+            <table id="protectThresholdTable"></table>
+          </div>
           <div class="muted" id="protectThresholdMsg"></div>
         </div>
       </div>
@@ -193,7 +218,8 @@
     };
     $('rebootBtn').onclick = async () => { if (!confirm('确定要重启设备吗？')) return; await postJson('/api/reboot'); $('topStatus').textContent = '设备正在重启'; };
     load().catch(() => $('topStatus').textContent = '读取失败');
-    setInterval(() => load().catch(() => {}), 5000);
+    setInterval(() => load().catch(() => { }), 5000);
   </script>
 </body>
+
 </html>

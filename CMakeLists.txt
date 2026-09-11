@@ -15,7 +15,7 @@ set(EXTRA_COMPONENT_DIRS
 
 # 版本号 MAJOR.MINOR 由开发者修改
 set(VERSION_MAJOR 0 CACHE STRING "Major version")
-set(VERSION_MINOR 9 CACHE STRING "Minor version")
+set(VERSION_MINOR 1 CACHE STRING "Minor version")
 # PATCH 区分本地/CD 不要修改
 set(VERSION_PATCH 99 CACHE STRING "Patch version (99=local, 0=CD)")
 
@@ -28,7 +28,7 @@ add_custom_target(run_pre_build ALL
     VERBATIM
 )
 
-project(Wireless_power_meter_lite)
+project(Wireless_power_meter_pro_v2)
 
 # 将版本号注入所有目标的编译定义
 idf_build_set_property(COMPILE_DEFINITIONS 

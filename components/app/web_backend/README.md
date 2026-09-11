@@ -87,7 +87,7 @@ OTA 诊断统一使用轻量文本事件，不附加结构化状态快照。上�
 | `/api/protect` | GET/POST | 查询保护详情、开启/关闭保护功能，或更新持久化保护阈值 |
 | `/api/can` | GET/POST | 查询或设置 CAN 波特率和设备 ID |
 | `/api/calibration` | GET | 查询电流校准参数 |
-| `/api/diagnostics` | GET | 查询 INA226 原始寄存器等诊断数据 |
+| `/api/diagnostics` | GET | 查询 INA228 原始寄存器等诊断数据 |
 | `/api/logs` | GET | 按 `since` 增量读取最近 8KB 实时 ESP 日志 |
 | `/api/logs/clear` | POST | 清空实时日志缓冲区 |
 | `/api/blackbox` | GET | 按 `start` 原始记录游标和 `limit` 逻辑记录数分页读取持久化日志 |
@@ -301,7 +301,7 @@ sequenceDiagram
 - [`ota_manager`](../../middleware/ota_manager/README.md)（`middleware`）
 - [`WebServer`](../../middleware/WebServer/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
-- [`st7735_driver`](../../bsp/st7735_driver/README.md)（`bsp`）
+- [`st7789_driver`](../../bsp/st7789_driver/README.md)（`bsp`）
 - [`web_file`](../../assets/web_file/README.md)（`assets`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。

@@ -1,6 +1,6 @@
-# Wireless Power Meter Lite
+# Wireless Power Meter Pro V2
 
-`Wireless_power_meter_lite` 是一个基于 ESP-IDF 的无线功率测量与输出控制固件。
+`Wireless_power_meter_pro_v2` 是一个基于 ESP32-C6 与 INA228 的无线功率测量与输出控制固件。
 工程将实时采样、累计计量、保护策略、本地交互、无线控制、Web 服务、日志诊断和
 OTA 升级组织为独立组件，既可以直接构建完整固件，也可以作为 ESP-IDF 多组件项目
 的参考实现。
@@ -120,7 +120,7 @@ ESP-NOW 的每个入口重复判断。
 ### 本地屏幕 UI
 
 `screen` 组件采用静态多页面架构。`screen_task` 是唯一 UI 消费者，Button 任务只把
-按键事件投递到固定队列；页面切换、页面内交互和 ST7735 绘制均在屏幕任务中串行执行。
+按键事件投递到固定队列；页面切换、页面内交互和 ST7789 绘制均在屏幕任务中串行执行。
 
 组件内部按 `core/`、`pages/`、`widgets/` 和 `config/` 分层：核心调度器只依赖抽象
 `Page`，具体页面由静态 `PageRegistry` 创建和排序，运行期不使用堆分配。Dashboard、
@@ -190,7 +190,7 @@ ESP-NOW 和普通 WiFi 共用同一套 2.4 GHz 射频，因此不能把它们当
 |------|------|
 | 模拟与温度 | [ADC](components/bsp/ADC/README.md) · [Temperature](components/bsp/Temperature/README.md) |
 | 总线与无线 | [HXC_TWAI](components/bsp/HXC_TWAI/README.md) · [wifi_manager](components/bsp/wifi_manager/README.md) |
-| GPIO 与显示 | [cpp_gpio_driver](components/bsp/cpp_gpio_driver/README.md) · [PWM](components/bsp/PWM/README.md) · [st7735_driver](components/bsp/st7735_driver/README.md) |
+| GPIO 与显示 | [cpp_gpio_driver](components/bsp/cpp_gpio_driver/README.md) · [PWM](components/bsp/PWM/README.md) · [st7789_driver](components/bsp/st7789_driver/README.md) |
 | 存储与平台 | [HXC_NVS](components/bsp/HXC_NVS/README.md) · [circular_flash_buffer](components/bsp/circular_flash_buffer/README.md) · [hardware](components/bsp/hardware/README.md) · [shell](components/bsp/shell/README.md) |
 | 通用库 | [diagnostic_log](components/common/diagnostic_log/README.md) · [Interp](components/common/Interp/README.md) |
 | 静态资源 | [Fonts](components/assets/Fonts/README.md) · [ui_resources](components/assets/ui_resources/README.md) · [web_file](components/assets/web_file/README.md) |
@@ -238,8 +238,8 @@ idf.py build
 
 构建过程会生成静态资源，并在完成后输出：
 
-- `build/Wireless_power_meter_lite.bin`：仅应用程序；
-- `Wireless_power_meter_lite_merged.bin`：Bootloader、分区表和应用程序合并固件。
+- `build/Wireless_power_meter_pro_v2.bin`：仅应用程序；
+- `Wireless_power_meter_pro_v2_merged.bin`：Bootloader、分区表和应用程序合并固件。
 
 ## 烧录
 
@@ -248,7 +248,7 @@ idf.py build
 适用于首次安装、故障恢复或分区布局发生变化：
 
 ```powershell
-esptool.py --chip esp32c6 write_flash 0x0 Wireless_power_meter_lite_merged.bin
+esptool.py --chip esp32c6 write_flash 0x0 Wireless_power_meter_pro_v2_merged.bin
 ```
 
 完整烧录会覆盖 NVS 和 OTA 状态区域，网络、校准和业务配置需要重新设置。
@@ -265,7 +265,7 @@ esptool.py --chip esp32c6 write_flash 0x0 Wireless_power_meter_lite_merged.bin
 
 ## 在线烧录
 
-[使用 ESP Launchpad 在线烧录最新固件](https://espressif.github.io/esp-launchpad/?flashConfigURL=https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_lite@firmware-dist/launchpad/latest.toml)
+[使用 ESP Launchpad 在线烧录最新固件](https://espressif.github.io/esp-launchpad/?flashConfigURL=https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@firmware-dist/launchpad/latest.toml)
 
 在线入口读取 `firmware-dist` 分支上的最新发布配置，需要使用支持 Web Serial 的
 Chromium 系浏览器。完整烧录会清除 NVS 配置，升级前应确认是否需要备份。

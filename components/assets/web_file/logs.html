@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>实时日志 - Wireless Power Meter Lite</title>
+  <title>实时日志 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">实时日志</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">实时日志</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,13 +24,22 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
       <div class="page-head">
-        <div><h2>实时日志</h2><div class="sub">查看设备当前运行日志，页面打开期间自动更新</div></div>
+        <div>
+          <h2>实时日志</h2>
+          <div class="sub">查看设备当前运行日志，页面打开期间自动更新</div>
+        </div>
         <div class="actions">
-          <select id="pollRate"><option value="200">0.2s 刷新</option><option value="500">0.5s 刷新</option><option value="1000" selected>1s 刷新</option><option value="2000">2s 刷新</option><option value="5000">5s 刷新</option></select>
+          <select id="pollRate">
+            <option value="200">0.2s 刷新</option>
+            <option value="500">0.5s 刷新</option>
+            <option value="1000" selected>1s 刷新</option>
+            <option value="2000">2s 刷新</option>
+            <option value="5000">5s 刷新</option>
+          </select>
           <button class="secondary" id="pauseBtn">暂停</button>
           <button class="danger" id="clearBtn">清空</button>
         </div>
@@ -125,4 +139,5 @@
     restart();
   </script>
 </body>
+
 </html>

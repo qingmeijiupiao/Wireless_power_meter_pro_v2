@@ -5,7 +5,7 @@
 ## 模块特点
 
 - **硬件版本识别**：通过指定 ADC 通道读取硬件版本分压值，换算为硬件版本号
-- **集中引脚表**：按硬件版本维护 TFT、CAN、INA226、温度传感器、输出控制和按键引脚
+- **集中引脚表**：按硬件版本维护 TFT、CAN、INA228、温度传感器、输出控制和按键引脚
 - **默认兜底配置**：未知版本会打印警告并回退到 `version_1`
 - **启动前置依赖**：`hardware_config_init()` 必须在依赖引脚配置的模块初始化前调用
 
@@ -18,7 +18,7 @@
 | TFT | `TFT_SCL`、`TFT_SDA`、`TFT_RST`、`TFT_RS`、`TFT_CS`、`TFT_BLK`、`TFT_BLK_ACTIVE_STATE` |
 | 温度 | `temperature_channel` |
 | CAN | `CAN_TX`、`CAN_RX`、`CAN_RESISTOR_ENABLE` |
-| INA226 | `INAA226_SDA`、`INAA226_SCL`、`INAA226_ALERT` |
+| INA228 | `INAA226_SDA`、`INAA226_SCL`、`INAA226_ALERT` |
 | 输出 | `OUTPUT_CTRL` |
 | 按键 | `MAIN_BUTTON`、`SIDE_BUTTON` |
 

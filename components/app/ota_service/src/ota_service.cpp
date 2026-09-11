@@ -25,7 +25,7 @@ namespace {
 
 constexpr char     TAG[]                 = "OtaService";
 constexpr char     MANIFEST_URL[]        = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/"
-                                           "Wireless_power_meter_lite@firmware-dist/ota/latest.json";
+                                           "Wireless_power_meter_pro_v2@firmware-dist/ota/latest.json";
 constexpr size_t   CONFIG_BUFFER_SIZE    = 4096;
 constexpr size_t   DOWNLOAD_BUFFER_SIZE  = 4096;
 constexpr uint32_t HTTP_TIMEOUT_MS       = 15000;

@@ -82,9 +82,9 @@ GLOBAL_FLAG_LABELS = {
     "protect_bypassed": "保护已旁路",
     "protect_initialized": "保护已初始化",
     "lp_core_running": "LP Core运行中",
-    "lp_ina226_initialized": "LP INA226已初始化",
+    "lp_ina228_initialized": "LP INA228已初始化",
     "lp_i2c_error": "LP I2C错误",
-    "lp_ina226_read_timeout": "LP INA226读取超时",
+    "lp_ina228_read_timeout": "LP INA228读取超时",
     "wifi_service_initialized": "WiFi服务已初始化",
     "wifi_enabled": "WiFi已开启",
     "wifi_sta_connected": "WiFi STA已连接",
@@ -401,16 +401,16 @@ def build_diagnostic_events(
         "output_enabled",
         "protect_bypassed",
         "lp_core_running",
-        "lp_ina226_initialized",
+        "lp_ina228_initialized",
         "lp_i2c_error",
-        "lp_ina226_read_timeout",
+        "lp_ina228_read_timeout",
         "wifi_enabled",
         "wifi_sta_connected",
         "wifi_ap_mode",
         "web_backend_running",
         "blackbox_enabled",
     }
-    warning_flags = {"lp_i2c_error", "lp_ina226_read_timeout"}
+    warning_flags = {"lp_i2c_error", "lp_ina228_read_timeout"}
 
     for row in chronological:
         text = row.get("text", "")

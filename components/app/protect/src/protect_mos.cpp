@@ -13,7 +13,7 @@ constexpr char TAG[] = "protect";
 
 // MOS 诊断与主保护任务解耦，低频运行，避免输出切换和电机瞬态造成误报。
 constexpr TickType_t MOS_CHECK_INTERVAL_TICKS  = pdMS_TO_TICKS(250);
-// 输出关闭后 INA226 平均窗口、电机惯性和输出电容都可能产生残留电流，先等待稳定。
+// 输出关闭后 INA228 平均窗口、电机惯性和输出电容都可能产生残留电流，先等待稳定。
 constexpr TickType_t MOS_OUTPUT_SETTLE_TICKS   = pdMS_TO_TICKS(3000);
 // 达到该持续时间只记录 suspicious，用于现场排查，不直接判定硬件损坏。
 constexpr TickType_t MOS_SUSPICIOUS_TICKS      = pdMS_TO_TICKS(2000);
@@ -27,8 +27,8 @@ TaskHandle_t mos_task_handle = nullptr;
 /**
  * @brief MOS 损坏后台诊断任务。
  *
- * @note 只有在输出关闭足够久、INA226 测量可靠且异常电流持续存在时才记录诊断事件。
- *       INA226 降级时立即放弃当前检测窗口，避免用陈旧或无效电流误报 MOS 损坏。
+ * @note 只有在输出关闭足够久、INA228 测量可靠且异常电流持续存在时才记录诊断事件。
+ *       INA228 降级时立即放弃当前检测窗口，避免用陈旧或无效电流误报 MOS 损坏。
  */
 void mos_fault_task(void*) {
     TickType_t ticks                  = xTaskGetTickCount();
@@ -72,13 +72,13 @@ void mos_fault_task(void*) {
             continue;
         }
 
-        if (!protect_ina226_measurement_reliable()) {
+        if (!protect_ina228_measurement_reliable()) {
             // 测量链路不可靠时不保留检测窗口；恢复后必须重新累计持续时间。
             detection_active    = false;
             suspicious_reported = false;
             fault_reported      = false;
             if (!unreliable_reported) {
-                DEVICE_EVENT_W(TAG, "mos: skipped reason=ina226_unreliable");
+                DEVICE_EVENT_W(TAG, "mos: skipped reason=ina228_unreliable");
                 unreliable_reported = true;
             }
             xTaskDelayUntil(&ticks, MOS_CHECK_INTERVAL_TICKS);

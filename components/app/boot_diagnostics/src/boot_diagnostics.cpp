@@ -98,7 +98,7 @@ void append_runtime() {
     append_boot_line("boot: runtime can_resistor=%u wifi_mode=%u ip=%u.%u.%u.%u",
                      CanResistor::instance().get() ? 1U : 0U, static_cast<uint32_t>(WifiService::get_mode()), ip.octet1,
                      ip.octet2, ip.octet3, ip.octet4);
-    append_boot_line("boot: runtime ina226_raw_i=%d ina226_raw_v=%u flags=0x%lx", global_state.current_register_raw,
+    append_boot_line("boot: runtime ina228_raw_i=%d ina228_raw_v=%u flags=0x%lx", global_state.current_register_raw,
                      global_state.voltage_register_raw, static_cast<uint32_t>(flags_raw));
 }
 

@@ -45,7 +45,7 @@ python3 scripts/pre_build.py
 构建完成后，将 bootloader、分区表和已有分区镜像合并为一个固件文件：
 
 ```text
-Wireless_power_meter_lite_merged.bin
+Wireless_power_meter_pro_v2_merged.bin
 ```
 
 CMake 的 `run_post_build` 目标会自动执行它。脚本内部调用：
@@ -70,7 +70,7 @@ python3 scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 
 ### `image_converter.py`
 
-把 PNG、JPG、BMP 等图片转换为 ST7735 可用的 RGB565 小端序数组头文件。
+把 PNG、JPG、BMP 等图片转换为 ST7789 可用的 RGB565 小端序数组头文件。
 
 ```bash
 python3 scripts/image_converter.py <输入图片> <输出头文件> [-n 自定义数组名]

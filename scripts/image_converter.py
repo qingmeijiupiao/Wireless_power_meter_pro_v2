@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 图片转RGB565数组转换器
-用于将PNG、JPG、BMP等图片转换为ST7735显示屏可用的RGB565数组
+用于将PNG、JPG、BMP等图片转换为ST7789显示屏可用的RGB565数组
 """
 
 import sys
@@ -97,7 +97,7 @@ def generate_header_file(image_name, width, height, pixels):
  * @file {image_name}.h
  * @brief {image_name}图片的RGB565数组数据
  * 
- * 自动生成的图片数据，用于ST7735显示屏
+ * 自动生成的图片数据，用于ST7789显示屏
  * 尺寸: {width}x{height} 像素
  * 格式: RGB565 (小端序)
  */
@@ -148,7 +148,7 @@ const uint16_t {image_name}_data[] = {{
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description='将图片转换为ST7735显示屏可用的RGB565数组',
+        description='将图片转换为ST7789显示屏可用的RGB565数组',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:

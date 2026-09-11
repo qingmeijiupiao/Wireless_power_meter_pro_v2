@@ -2,7 +2,7 @@
  * @file WarningRectangle.h
  * @brief WarningRectangle图片的RGB565数组数据
  * 
- * 自动生成的图片数据，用于ST7735显示屏
+ * 自动生成的图片数据，用于ST7789显示屏
  * 尺寸: 42x18 像素
  * 格式: RGB565 (小端序)
  */

@@ -76,7 +76,7 @@ bool LP_Core_GetSnapshot(LP_Core_Snapshot* snapshot) {
     snapshot->current_uA             = static_cast<int32_t>(ulp_current_uA);
     snapshot->shunt_register_raw     = static_cast<int16_t>(ulp_shunt_register_raw);
     snapshot->voltage_register_raw   = static_cast<uint16_t>(ulp_voltage_register_raw);
-    snapshot->ina226_manufacturer_id = static_cast<uint16_t>(ulp_ina226_manufacturer_id);
+    snapshot->ina228_manufacturer_id = static_cast<uint16_t>(ulp_ina228_manufacturer_id);
     snapshot->meter_uah              = read_shared_int64(ulp_meter_uah);
     snapshot->meter_uwh              = read_shared_int64(ulp_meter_uwh);
     ulp_lp_core_exit_critical(rtc_shared_lock);
@@ -163,7 +163,7 @@ esp_err_t LP_Core_Load(void) {
     while (timeout -= 10) {
         LP_Core_Snapshot snapshot = {};
         if (LP_Core_GetSnapshot(&snapshot) && snapshot.state.ulp_state_bits.ulp_run &&
-            snapshot.state.ulp_state_bits.ulp_ina226_init_ok) {
+            snapshot.state.ulp_state_bits.ulp_ina228_init_ok) {
             break;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -172,8 +172,8 @@ esp_err_t LP_Core_Load(void) {
     LP_Core_Snapshot snapshot = {};
     LP_Core_GetSnapshot(&snapshot);
     if (snapshot.state.ulp_state_bits.ulp_i2c_init_err) {
-        ESP_LOGE(LPTAG, "lp: ina226 result=unavailable reason=communication_failed manufacturer=0x%04x",
-                 static_cast<uint32_t>(snapshot.ina226_manufacturer_id));
+        ESP_LOGE(LPTAG, "lp: ina228 result=unavailable reason=communication_failed manufacturer=0x%04x",
+                 static_cast<uint32_t>(snapshot.ina228_manufacturer_id));
     } else {
         ESP_LOGI(LPTAG, "lp core i2c init success...");
     }

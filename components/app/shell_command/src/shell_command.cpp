@@ -4,7 +4,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "hardware.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "can_callback.h"
 #include "blackbox.h"
 #include "blackbox_service.h"
@@ -255,7 +255,7 @@ esp_err_t init() {
                                           [](int argc, char** argv) -> int {
                                               if (argc < 2) {
                                                   // 不带参数时显示当前亮度
-                                                  uint8_t current_brightness = ST7735::get_backlight();
+                                                  uint8_t current_brightness = ST7789::get_backlight();
                                                   printf("Current backlight(0-255): %d\n", current_brightness);
                                                   return 0;
                                               }
@@ -264,7 +264,7 @@ esp_err_t init() {
                                                   printf("Error: brightness must be 0-255\n");
                                                   return 1;
                                               }
-                                              esp_err_t ret = ST7735::set_backlight((uint8_t)brightness);
+                                              esp_err_t ret = ST7789::set_backlight((uint8_t)brightness);
                                               if (ret != ESP_OK) {
                                                   printf("Failed to set backlight\n");
                                                   return 1;
@@ -830,16 +830,16 @@ esp_err_t init() {
         }));
 
     /**
-     * @brief  ina226_register - 获取ina226寄存器值
-     * @usage  ina226_register <register_addr>
-     * @note   显示当前ina226电压电流寄存器值
+     * @brief  ina228_register - 获取ina228寄存器值
+     * @usage  ina228_register <register_addr>
+     * @note   显示当前ina228电压电流寄存器值
      */
     shell.register_command(
-        ShellCommand_t("ina226_register", "Get ina226 register value", "", [](int argc, char** argv) -> int {
+        ShellCommand_t("ina228_register", "Get ina228 register value", "", [](int argc, char** argv) -> int {
             const auto state = get_global_state();
-            printf("ina226_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
+            printf("ina228_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
                    state.current_register_raw, static_cast<uint32_t>(state.voltage_register_raw),
-                   static_cast<uint32_t>(state.flags.lp_ina226_initialized ? 1U : 0U));
+                   static_cast<uint32_t>(state.flags.lp_ina228_initialized ? 1U : 0U));
             return 0;
         }));
 

@@ -37,7 +37,7 @@
 #include "meter_v_logo.h"
 #include "meter_w_logo.h"
 #include "settings_logo.h"
-#include "st7735.h"
+#include "st7789.h"
 #include "ota_service.h"
 #include "ui_close.h"
 #include "ui_open.h"
@@ -151,7 +151,7 @@ bool BatteryPage::handle_button(ButtonId button, ButtonEvent event) {
  */
 void BatteryPage::render(RenderMode mode) {
     (void)mode;
-    ST7735::fill_screen(ST7735::BLACK);
+    ST7789::fill_screen(ST7789::BLACK);
 
     const EnergyMeter::Snapshot meter          = EnergyMeter::snapshot();
     const int64_t               meter_uwh      = meter.energy_uwh;
@@ -166,39 +166,39 @@ void BatteryPage::render(RenderMode mode) {
     char line[32];
 
     auto draw_realtime_status = [&]() {
-        ST7735::draw_image(2, 4, METER_V_LOGO_WIDTH, METER_V_LOGO_HEIGHT, meter_v_logo_data);
+        ST7789::draw_image(2, 4, METER_V_LOGO_WIDTH, METER_V_LOGO_HEIGHT, meter_v_logo_data);
         format_fixed_digits(line, sizeof(line), voltage, "V", 3, 2, true);
-        ST7735::draw_string(12, 5, line, ST7735::WHITE, ST7735::BLACK, DENGB12);
+        ST7789::draw_string(12, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
 
-        ST7735::draw_image(48, 4, METER_A_LOGO_WIDTH, METER_A_LOGO_HEIGHT, meter_a_logo_data);
+        ST7789::draw_image(48, 4, METER_A_LOGO_WIDTH, METER_A_LOGO_HEIGHT, meter_a_logo_data);
         format_fixed_digits(line, sizeof(line), current, "A", 3, 2, true);
-        ST7735::draw_string(58, 5, line, ST7735::WHITE, ST7735::BLACK, DENGB12);
+        ST7789::draw_string(58, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
 
-        ST7735::draw_image(93, 4, METER_W_LOGO_WIDTH, METER_W_LOGO_HEIGHT, meter_w_logo_data);
+        ST7789::draw_image(93, 4, METER_W_LOGO_WIDTH, METER_W_LOGO_HEIGHT, meter_w_logo_data);
         format_fixed_digits(line, sizeof(line), power, "W", 3, 2, true);
-        ST7735::draw_string(106, 5, line, ST7735::WHITE, ST7735::BLACK, DENGB12);
+        ST7789::draw_string(106, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
 
         const bool output_enabled = global_state.flags.output_enabled;
-        ST7735::draw_image(145, 4, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
+        ST7789::draw_image(145, 4, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
                            output_enabled ? METER_CIRCLE_GREEN_HEIGHT : METER_CIRCLE_RED_HEIGHT,
                            output_enabled ? meter_circle_green_data : meter_circle_red_data);
     };
 
     auto draw_meter_values = [&]() {
-        ST7735::draw_image(2, 18, WH_LOGO_WIDTH, WH_LOGO_HEIGHT, wh_logo_data);
+        ST7789::draw_image(2, 18, WH_LOGO_WIDTH, WH_LOGO_HEIGHT, wh_logo_data);
         format_fixed_digits(line, sizeof(line), meter_uwh / 1000.0, "mWh", 6, 3, false);
-        ST7735::draw_string(34, 20, line, ST7735::color_t(0x003ED0), ST7735::BLACK, DENGB20);
+        ST7789::draw_string(34, 20, line, ST7789::color_t(0x003ED0), ST7789::BLACK, DENGB20);
 
-        ST7735::draw_image(2, 43, AH_LOGO_WIDTH, AH_LOGO_HEIGHT, ah_logo_data);
+        ST7789::draw_image(2, 43, AH_LOGO_WIDTH, AH_LOGO_HEIGHT, ah_logo_data);
         format_fixed_digits(line, sizeof(line), meter_uah / 1000.0, "mAh", 6, 3, false);
-        ST7735::draw_string(34, 45, line, ST7735::color_t(0x1ef851), ST7735::BLACK, DENGB20);
+        ST7789::draw_string(34, 45, line, ST7789::color_t(0x1ef851), ST7789::BLACK, DENGB20);
     };
 
     auto draw_time_values = [&]() {
         format_duration(line, sizeof(line), "S:", system_seconds);
-        ST7735::draw_string(2, 68, line, ST7735::color_t(0x2FC9EC), ST7735::BLACK, DENGB12);
+        ST7789::draw_string(2, 68, line, ST7789::color_t(0x2FC9EC), ST7789::BLACK, DENGB12);
         format_duration(line, sizeof(line), "M:", meter_seconds);
-        ST7735::draw_string(90, 68, line, ST7735::color_t(0x1EF851), ST7735::BLACK, DENGB12);
+        ST7789::draw_string(90, 68, line, ST7789::color_t(0x1EF851), ST7789::BLACK, DENGB12);
     };
 
     draw_realtime_status();

@@ -26,12 +26,13 @@ static constexpr uint32_t MAX_START_LOGO_DURATION_MS     = 10000;
 enum class ButtonId : uint8_t {
     Main, /**< 正面主按键 */
     Side, /**< 侧边功能按键 */
+    Previous, /**< 上一页/BOOT 复用按键 */
 };
 
 /**
  * @brief 屏幕任务入口
  *
- * 初始化 ST7735 屏幕、UI 管理器和显示配置，随后持续处理 UI 事件并刷新当前页面。
+ * 初始化 ST7789 屏幕、UI 管理器和显示配置，随后持续处理 UI 事件并刷新当前页面。
  * @param arg FreeRTOS 任务参数，当前未使用
  */
 void screen_task(void* arg);

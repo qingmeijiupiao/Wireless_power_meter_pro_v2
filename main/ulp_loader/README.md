@@ -6,7 +6,7 @@ HP 核侧 LP Core 加载模块，负责初始化 LP I2C、加载 `ulp_app` 编�
 
 - **LP Core 启动封装**：`LP_Core_Load()` 完成 LP I2C 初始化、二进制加载、运行和启动状态检查
 - **校准参数桥接**：从 `CurrentCalib::params_data` 读取 NVS 参数，写入 LP 核 RTC 共享变量
-- **启动握手**：等待 `ulp_run` 与 `ulp_ina226_init_ok` 置位，最长约 600ms
+- **启动握手**：等待 `ulp_run` 与 `ulp_ina228_init_ok` 置位，最长约 600ms
 - **LP 日志桥接**：后台任务轮询 `ulp_have_log`，将 LP 核日志值转为 HP 核 `ESP_LOGI`
 - **共享快照**：通过 LP/HP 跨核锁一次性读取状态、采样值、原始寄存器和累计值
 
@@ -31,7 +31,7 @@ sequenceDiagram
     Loader->>NVS: read()
     Loader->>RTC: 写入 current_calib_params
     loop 每 10ms，最多约 600ms
-        Loader->>RTC: 检查 ulp_run 和 ulp_ina226_init_ok
+        Loader->>RTC: 检查 ulp_run 和 ulp_ina228_init_ok
     end
     Loader->>RTC: 绑定 raw register 指针
     Loader->>Loader: 创建 print_lp_core_log_task
@@ -62,7 +62,7 @@ classDiagram
         +uint32_t ulp_state_raw
         +ulp_have_log : 1
         +ulp_i2c_init_err : 1
-        +ulp_ina226_init_ok : 1
+        +ulp_ina228_init_ok : 1
         +ulp_run : 1
         +ulp_reload_calib_params : 1
     }
@@ -95,6 +95,6 @@ classDiagram
 
 ## 注意事项
 
-- 当前 `i2c_cfg` 固定使用 GPIO6/GPIO7，与 `hardware_config` 中 INA226 引脚保持一致；若未来硬件版本切换 INA226 引脚，需要同步调整这里。
+- 当前 `i2c_cfg` 固定使用 GPIO6/GPIO7，与 `hardware_config` 中 INA228 引脚保持一致；若未来硬件版本切换 INA228 引脚，需要同步调整这里。
 - `LP_Core_Load()` 内部使用 `ESP_ERROR_CHECK` 处理 I2C、二进制加载和运行错误，相关错误会直接触发 ESP-IDF 错误检查行为。
 - `LP_Core_GetSnapshot()` 使用 RTC 共享自旋锁，调用方不会读取到撕裂的 `int64_t` 累计值或不一致的采样字段。

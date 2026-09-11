@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>实时概览 - Wireless Power Meter Lite</title>
+  <title>实时概览 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">正在读取状态...</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">正在读取状态...</div>
+      </div>
       <nav>
         <a class="tab active" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,35 +24,81 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
       <div class="page-head">
-        <div><h2>实时概览</h2><div class="sub">快速查看当前测量值、输出和保护状态</div></div>
-        <label class="refresh-control"><span>刷新间隔</span><select id="sampleRate"><option value="500">0.5 秒</option><option value="1000">1 秒</option><option value="2000">2 秒</option><option value="5000">5 秒</option></select></label>
+        <div>
+          <h2>实时概览</h2>
+          <div class="sub">快速查看当前测量值、输出和保护状态</div>
+        </div>
+        <label class="refresh-control"><span>刷新间隔</span><select id="sampleRate">
+            <option value="500">0.5 秒</option>
+            <option value="1000">1 秒</option>
+            <option value="2000">2 秒</option>
+            <option value="5000">5 秒</option>
+          </select></label>
       </div>
       <div class="grid overview-grid">
-        <div class="card metric metric-voltage"><div class="label">电压</div><div class="value" id="voltage">-- V</div></div>
-        <div class="card metric metric-current"><div class="label">电流</div><div class="value" id="current">-- A</div></div>
-        <div class="card metric metric-power"><div class="label">功率</div><div class="value" id="power">-- W</div></div>
-        <div class="card metric metric-temp"><div class="label">板温 / 芯片</div><div class="value" id="temp">-- C</div></div>
-        <div class="card metric metric-time"><div class="label">系统运行时间</div><div class="value" id="systemTime">--:--:--</div></div>
+        <div class="card metric metric-voltage">
+          <div class="label">电压</div>
+          <div class="value" id="voltage">-- V</div>
+        </div>
+        <div class="card metric metric-current">
+          <div class="label">电流</div>
+          <div class="value" id="current">-- A</div>
+        </div>
+        <div class="card metric metric-power">
+          <div class="label">功率</div>
+          <div class="value" id="power">-- W</div>
+        </div>
+        <div class="card metric metric-temp">
+          <div class="label">板温 / 芯片</div>
+          <div class="value" id="temp">-- C</div>
+        </div>
+        <div class="card metric metric-time">
+          <div class="label">系统运行时间</div>
+          <div class="value" id="systemTime">--:--:--</div>
+        </div>
       </div>
       <div class="card stack">
         <div class="label">电量统计</div>
         <div class="grid energy-grid">
-          <div class="metric metric-energy"><div class="label">电量</div><div class="value" id="energy">-- mWh</div></div>
-          <div class="metric metric-charge"><div class="label">容量</div><div class="value" id="charge">-- mAh</div></div>
-          <div class="metric metric-time"><div class="label">计量时间</div><div class="value" id="meterTime">--:--:--</div></div>
-          <div class="stack"><button id="meterReset" class="secondary">重置电量</button><div class="muted" id="meterMsg"></div></div>
+          <div class="metric metric-energy">
+            <div class="label">电量</div>
+            <div class="value" id="energy">-- mWh</div>
+          </div>
+          <div class="metric metric-charge">
+            <div class="label">容量</div>
+            <div class="value" id="charge">-- mAh</div>
+          </div>
+          <div class="metric metric-time">
+            <div class="label">计量时间</div>
+            <div class="value" id="meterTime">--:--:--</div>
+          </div>
+          <div class="stack"><button id="meterReset" class="secondary">重置电量</button>
+            <div class="muted" id="meterMsg"></div>
+          </div>
         </div>
       </div>
       <div class="grid-2">
-          <div class="card stack output-card">
-            <div class="output-control"><div class="metric metric-output"><div class="label">输出状态</div><div class="value" id="output">--</div></div><div class="output-actions"><span class="muted" id="outputHint">读取中</span><button id="outputBtn" class="switch" aria-label="切换输出"></button></div></div>
-            <div class="muted" id="outputMsg"></div>
+        <div class="card stack output-card">
+          <div class="output-control">
+            <div class="metric metric-output">
+              <div class="label">输出状态</div>
+              <div class="value" id="output">--</div>
+            </div>
+            <div class="output-actions"><span class="muted" id="outputHint">读取中</span><button id="outputBtn"
+                class="switch" aria-label="切换输出"></button></div>
           </div>
-        <div class="card stack"><div class="row"><div class="label">保护状态</div><span class="pill" id="protectMode">读取中</span></div><div class="protect-list" id="protectPills"></div></div>
+          <div class="muted" id="outputMsg"></div>
+        </div>
+        <div class="card stack">
+          <div class="row">
+            <div class="label">保护状态</div><span class="pill" id="protectMode">读取中</span>
+          </div>
+          <div class="protect-list" id="protectPills"></div>
+        </div>
       </div>
     </main>
   </div>
@@ -112,4 +163,5 @@
     restart();
   </script>
 </body>
+
 </html>

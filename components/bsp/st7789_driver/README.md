@@ -1,6 +1,6 @@
-# st7735_driver
+# st7789_driver
 
-ST7735S TFT 显示屏（0.96" 160×80）SPI 驱动，提供像素绘制、矩形填充、等高变宽字体文本渲染、图像绘制及双缓冲同步等能力。
+ST7789V TFT 显示屏（1.14" 240×135）SPI 驱动，提供像素绘制、矩形填充、等高变宽字体文本渲染、图像绘制及双缓冲同步等能力。
 
 ## 模块特点
 
@@ -20,26 +20,26 @@ flowchart LR
     B --> C["sync_buffers()"]
     C --> D["set_address_window"]
     D --> E["SPI polling 传输"]:::hardware
-    E --> F["ST7735S 显示"]:::hardware
+    E --> F["ST7789V 显示"]:::hardware
     classDef hardware fill:#E8EAF6,stroke:#3F51B5,color:#1A237E;
 ```
 
 ## 集成与使用
 
 ```cpp
-#include "st7735.h"
+#include "st7789.h"
 #include "DENGB16.h"
 
-ST7735::Config cfg = {
+ST7789::Config cfg = {
     .mosi_io_num = 19, .sclk_io_num = 21, .cs_io_num = 22,
     .dc_io_num = 2, .rst_io_num = 3, .bl_io_num = 15,
     .bl_active_state = true, .host_id = SPI2_HOST
 };
-ST7735::init(&cfg);
-ST7735::fill_screen(ST7735::BLACK);
-ST7735::draw_string(0, 0, "Hello!", ST7735::WHITE, ST7735::BLACK, DENGB16);
-ST7735::sync_buffers();
-ST7735::set_backlight(200);
+ST7789::init(&cfg);
+ST7789::fill_screen(ST7789::BLACK);
+ST7789::draw_string(0, 0, "Hello!", ST7789::WHITE, ST7789::BLACK, DENGB16);
+ST7789::sync_buffers();
+ST7789::set_backlight(200);
 ```
 
 ## API 参考
@@ -67,7 +67,7 @@ ST7735::set_backlight(200);
 
 ## 环境与依赖
 
-- **硬件**：ST7735S TFT 显示屏（160×80），SPI 接口
+- **硬件**：ST7789V TFT 显示屏（240×135），SPI 接口
 - **软件**：ESP-IDF v6.0+
 
 <!-- dependency-links:start -->

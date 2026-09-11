@@ -11,7 +11,7 @@
 #include <cstddef>
 #include "core/page.h"
 #include "pages/curve/curve_history.h"
-#include "st7735.h"
+#include "st7789.h"
 
 namespace SCREEN {
 
@@ -134,7 +134,7 @@ class CurvePage final : public Page {
      * @param metric 指标类型
      * @param color 曲线颜色
      */
-    void draw_single_metric(CurveMetric metric, ST7735::color_t color);
+    void draw_single_metric(CurveMetric metric, ST7789::color_t color);
 
     /**
      * @brief 绘制三指标叠加模式
@@ -161,7 +161,7 @@ class CurvePage final : public Page {
      * @param color 曲线颜色
      */
     void draw_bucket_curve(const CurveBucket* buckets, size_t bucket_count, const AutoRange& range, uint16_t x,
-                           uint16_t y, uint16_t height, ST7735::color_t color) const;
+                           uint16_t y, uint16_t height, ST7789::color_t color) const;
 
     DisplayMode display_mode_                                     = DisplayMode::Voltage; // 当前曲线显示模式
     EditItem    edit_item_                                        = EditItem::Display;    // 当前编辑项
@@ -169,7 +169,7 @@ class CurvePage final : public Page {
     bool        editing_                                          = false; // 是否处于曲线参数编辑状态
     bool        config_loaded_                                    = false; // 是否已经从 NVS 加载配置
     AutoRange   ranges_[static_cast<uint8_t>(CurveMetric::Count)] = {};    // 各指标自动量程
-    CurveBucket buckets_[ST7735::WIDTH]                           = {};    // 单帧像素桶工作缓冲区
+    CurveBucket buckets_[ST7789::WIDTH]                           = {};    // 单帧像素桶工作缓冲区
 };
 
 } // namespace SCREEN

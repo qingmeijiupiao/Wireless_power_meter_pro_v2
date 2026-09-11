@@ -42,7 +42,7 @@ flowchart TD
     Parse --> MW["执行全局中间件"]
     MW --> Match["查找路由表"]
     Match -->|命中| Handler["调用 Handler"]
-    Match -->|未命中且 captive 开启| Index["回落到 / 路由"]
+    Match -->|未命中且 captive 开启| Index["302 跳转到 /provision"]
     Match -->|未命中| NotFound["404 Handler"]
     Handler --> Resp["发送响应"]
     Index --> Resp

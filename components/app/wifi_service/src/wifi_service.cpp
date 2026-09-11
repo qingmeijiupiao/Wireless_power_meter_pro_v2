@@ -246,11 +246,11 @@ static esp_err_t require_espnow_active() {
 /**
  * @brief 基于 AP MAC 生成默认配网热点名
  *
- * 命名格式为 `WPM-Lite-XXXXXX`，后缀取 AP MAC 的后三字节，便于用户区分多台设备。
+ * 命名格式为 `WPM-PRO-V2-XXXXXX`，后缀取 AP MAC 的后三字节，便于用户区分多台设备。
  */
 static void make_ap_ssid() {
     MAC_t mac = WiFiManager::instance().get_mac(WIFI_IF_AP);
-    snprintf(ap_ssid, sizeof(ap_ssid), "WPM-Lite-%02X%02X%02X", mac.octet4, mac.octet5, mac.octet6);
+    snprintf(ap_ssid, sizeof(ap_ssid), "WPM-PRO-V2-%02X%02X%02X", mac.octet4, mac.octet5, mac.octet6);
 }
 
 /**

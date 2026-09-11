@@ -12,7 +12,7 @@
 #else
 #include "esp_vfs_usb_serial_jtag.h"
 #endif
-constexpr char shell_header[] = "ESP@wireless_power_meter_lite> ";
+constexpr char shell_header[] = "ESP@wireless_power_meter_pro_v2> ";
 
 Shell::Shell()
     : mode_(Mode::ESP_LOG), listener_task_handle_(nullptr), original_log_level_(ESP_LOG_INFO), initialized_(false) {}

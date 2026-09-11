@@ -27,7 +27,7 @@ struct LP_Core_Snapshot {
     int32_t        current_uA             = 0;
     int16_t        shunt_register_raw     = 0;
     uint16_t       voltage_register_raw   = 0;
-    uint16_t       ina226_manufacturer_id = 0;
+    uint16_t       ina228_manufacturer_id = 0;
     int64_t        meter_uah              = 0;
     int64_t        meter_uwh              = 0;
 };

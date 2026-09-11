@@ -97,7 +97,7 @@ esp_err_t connect_sta(const char* ssid, const char* password, bool save, const c
 /**
  * @brief 启动 AP 配网模式
  *
- * 使用 `WPM-Lite-XXXXXX` 作为开放热点名，启动 DNS 劫持并开启 WebServer Captive Portal 回落。
+ * 使用 `WPM-PRO-V2-XXXXXX` 作为开放热点名，启动 DNS 劫持并开启 WebServer Captive Portal 回落。
  *
  * @return ESP_OK 成功，其他值来自 WiFiManager 或 DNSServer
  */

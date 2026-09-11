@@ -1,15 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>状态诊断 - Wireless Power Meter Lite</title>
+  <title>状态诊断 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
 </head>
+
 <body>
   <div class="layout">
     <aside>
-      <div class="brand"><h1>Wireless Power Meter Lite</h1><div class="sub" id="topStatus">状态诊断</div></div>
+      <div class="brand">
+        <h1>Wireless Power Meter Pro V2</h1>
+        <div class="sub" id="topStatus">状态诊断</div>
+      </div>
       <nav>
         <a class="tab" href="/">实时概览</a>
         <a class="tab" href="/charts.html">趋势曲线</a>
@@ -19,18 +24,31 @@
         <a class="tab" href="/blackbox.html">历史日志</a>
         <a class="tab" href="/firmware.html">固件升级</a>
       </nav>
-      <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_lite" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div>
+      <!-- <div class="aside-footer"><a class="github-link" href="https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt=""></a></div> -->
     </aside>
     <main class="stack">
-      <div class="page-head"><div><h2>状态诊断</h2><div class="sub">查看系统信息、网络状态、保护详情、校准数据和传感器诊断</div></div><button id="refresh">刷新</button></div>
+      <div class="page-head">
+        <div>
+          <h2>状态诊断</h2>
+          <div class="sub">查看系统信息、网络状态、保护详情、校准数据和传感器诊断</div>
+        </div><button id="refresh">刷新</button>
+      </div>
       <div class="stack">
-        <div class="card"><strong>系统</strong><div class="muted" id="systemText">--</div></div>
-        <div class="card"><strong>WiFi / Web</strong><div class="muted" id="wifiText">--</div></div>
-        <div class="card"><strong>诊断</strong><div class="muted" id="diagText">--</div></div>
+        <div class="card"><strong>系统</strong>
+          <div class="muted" id="systemText">--</div>
+        </div>
+        <div class="card"><strong>WiFi / Web</strong>
+          <div class="muted" id="wifiText">--</div>
+        </div>
+        <div class="card"><strong>诊断</strong>
+          <div class="muted" id="diagText">--</div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">
-          <strong>RTOS 性能采样 <span title="CPU(%)：本次采样窗口内任务占用 CPU 的比例。运行增量：本次采样窗口内任务实际使用的 CPU 时间，单位约为微秒。累计运行：设备本次启动以来任务累计使用的 CPU 时间，单位约为微秒。最低剩余栈(B)：任务创建以来观测到的最小剩余栈空间，越接近 0 越需要关注。" style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:12px;cursor:help">?</span></strong>
+          <strong>RTOS 性能采样 <span
+              title="CPU(%)：本次采样窗口内任务占用 CPU 的比例。运行增量：本次采样窗口内任务实际使用的 CPU 时间，单位约为微秒。累计运行：设备本次启动以来任务累计使用的 CPU 时间，单位约为微秒。最低剩余栈(B)：任务创建以来观测到的最小剩余栈空间，越接近 0 越需要关注。"
+              style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:12px;cursor:help">?</span></strong>
           <div class="actions">
             <select id="rtosDuration">
               <option value="1">1s</option>
@@ -38,15 +56,27 @@
               <option value="10" selected>10s</option>
               <option value="other">other</option>
             </select>
-            <input id="rtosOther" type="number" min="1" max="300" value="30" placeholder="1-300s" style="display:none;width:96px">
+            <input id="rtosOther" type="number" min="1" max="300" value="30" placeholder="1-300s"
+              style="display:none;width:96px">
             <button id="rtosSample">开始采样</button>
           </div>
         </div>
         <div class="muted" id="rtosText">选择采样时长后点击开始采样。采样在后台执行，不会阻塞网页服务。</div>
-        <div style="overflow:auto"><table id="rtosTable"></table></div>
+        <div style="overflow:auto">
+          <table id="rtosTable"></table>
+        </div>
       </div>
-      <div class="card"><strong>保护详情</strong><div style="overflow:auto"><table id="protectTable"></table></div></div>
-      <div class="card"><strong>校准数据</strong><div class="muted" id="calibHead">--</div><div style="overflow:auto"><table id="calibTable"></table></div></div>
+      <div class="card"><strong>保护详情</strong>
+        <div style="overflow:auto">
+          <table id="protectTable"></table>
+        </div>
+      </div>
+      <div class="card"><strong>校准数据</strong>
+        <div class="muted" id="calibHead">--</div>
+        <div style="overflow:auto">
+          <table id="calibTable"></table>
+        </div>
+      </div>
     </main>
   </div>
   <script>
@@ -131,10 +161,10 @@
         ['最近错误', wifi.last_error || '(无)']
       ]);
       $('diagText').className = 'info-list';
-      $('diagText').innerHTML = diag.ina226.available ? infoHtml([
-        ['电流原始值', diag.ina226.current_register_raw],
-        ['电压原始值', diag.ina226.voltage_register_raw]
-      ]) : '<div class="muted">INA226 原始寄存器暂不可用</div>';
+      $('diagText').innerHTML = diag.ina228.available ? infoHtml([
+        ['电流原始值', diag.ina228.current_register_raw],
+        ['电压原始值', diag.ina228.voltage_register_raw]
+      ]) : '<div class="muted">INA228 原始寄存器暂不可用</div>';
       $('protectTable').innerHTML = '<tr><th>项目</th><th>状态</th><th>当前值</th><th>告警/恢复</th><th>保护/恢复</th></tr>' + prot.channels.map(c => `<tr><td>${protectName[c.name] || c.name}</td><td>${stateName[c.state] || c.state_text}</td><td>${fmt(c.value, 3)} ${c.unit}</td><td>${fmt(c.warning, 3)} / ${fmt(c.warning_recovery, 3)}</td><td>${fmt(c.protect, 3)} / ${fmt(c.protect_recovery, 3)}</td></tr>`).join('');
       $('calibHead').className = 'info-list';
       $('calibHead').innerHTML = infoHtml([
@@ -169,4 +199,5 @@
     pollRtos().catch(showRtosError);
   </script>
 </body>
+
 </html>

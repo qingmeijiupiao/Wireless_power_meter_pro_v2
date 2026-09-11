@@ -1,25 +1,25 @@
 /**
- * @file st7735.h
- * @brief ST7735S显示屏驱动
+ * @file st7789.h
+ * @brief ST7789V 1.14 英寸显示屏驱动
  *
- * 通过SPI控制TFT ST7735S显示屏的公共API。
+ * 通过 SPI 控制 ST7789V TFT 显示屏的公共 API。
  * 包含像素、矩形、抗锯齿圆角矩形、文本、图像和双缓冲同步接口。
  *
  * @example
  * ```cpp
- * ST7735::Config cfg = {
+ * ST7789::Config cfg = {
  *     .mosi_io_num = 19, .sclk_io_num = 21, .cs_io_num = 22,
  *     .dc_io_num = 2, .rst_io_num = 3, .bl_io_num = 15,
  *     .bl_active_state = true,
  *     .host_id = SPI2_HOST
  * };
- * ST7735::init(&cfg);
- * ST7735::fill_screen(ST7735::BLACK);
+ * ST7789::init(&cfg);
+ * ST7789::fill_screen(ST7789::BLACK);
  * ```
  */
 
-#ifndef __ST7735_H__
-#define __ST7735_H__
+#ifndef __ST7789_H__
+#define __ST7789_H__
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -28,21 +28,21 @@
 #include "esp_err.h"
 #include "color.h"
 #include "Font.h"
-namespace ST7735 {
+namespace ST7789 {
 
 /* ==================== 显示屏配置 ==================== */
 
 /** 显示屏在横向模式下的宽度（像素） */
-static constexpr uint16_t WIDTH = 160;
+static constexpr uint16_t WIDTH = 240;
 
 /** 显示屏在横向模式下的高度（像素） */
-static constexpr uint16_t HEIGHT = 80;
+static constexpr uint16_t HEIGHT = 135;
 
 enum class Rotation { Vertical = 0, Horizontal = 1, VerticalMirror = 2, HorizontalMirror = 3 };
 
 /* ==================== 像素偏移 ==================== */
-static constexpr uint8_t COLSTART = 0;
-static constexpr uint8_t ROWSTART = 24;
+static constexpr uint8_t COLSTART = 40;
+static constexpr uint8_t ROWSTART = 53;
 
 /**
  * @brief 显示屏硬件配置
@@ -53,7 +53,7 @@ struct Config {
     int               cs_io_num;       /**< 片选的GPIO引脚（TCS） */
     int               dc_io_num;       /**< 数据/命令的GPIO引脚（DC） */
     int               rst_io_num;      /**< 复位的GPIO引脚（RST） */
-    int               bl_io_num;       /**< 背光的GPIO引脚（Lite），-1表示未使用 */
+    int               bl_io_num;       /**< 背光的 GPIO 引脚，-1 表示未使用 */
     bool              bl_active_state; /**< 背光开启时引脚的电平状态 */
     spi_host_device_t host_id;         /**< SPI主机（SPI2_HOST或SPI3_HOST） */
 };
@@ -61,7 +61,7 @@ struct Config {
 /* ==================== 公共函数 ==================== */
 
 /**
- * @brief 初始化ST7735显示屏
+ * @brief 初始化ST7789显示屏
  * @param cfg 指向配置结构的指针
  * @param rotation 旋转方向
  * @return 成功返回ESP_OK，否则返回错误代码
@@ -213,6 +213,6 @@ esp_err_t set_backlight(uint8_t brightness);
  */
 uint8_t get_backlight();
 
-} // namespace ST7735
+} // namespace ST7789
 
 #endif
