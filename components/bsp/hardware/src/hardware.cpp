@@ -106,6 +106,10 @@ esp_err_t read_short_detect_raw(int& raw) {
     return short_detect_adc.read_raw(raw);
 }
 
+esp_err_t read_short_detect_voltage_mV(int& voltage_mV) {
+    return short_detect_adc.read_voltage_mV(voltage_mV);
+}
+
 esp_err_t set_short_test_enabled(bool enabled) {
     return gpio_set_level(get_hardware_config().SHORT_TEST_ENABLE, enabled ? 1 : 0);
 }

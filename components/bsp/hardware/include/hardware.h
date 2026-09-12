@@ -71,6 +71,13 @@ const struct hardware_config& get_hardware_config();
 /** 读取短路检测 ADC 原始值。 */
 esp_err_t read_short_detect_raw(int& raw);
 
+/**
+ * @brief 读取短路检测 ADC 校准电压。
+ * @param voltage_mV 返回检测点电压，单位 mV。
+ * @return ESP_OK 读取成功；其他值表示 ADC 或校准失败。
+ */
+esp_err_t read_short_detect_voltage_mV(int& voltage_mV);
+
 /** 控制短路检测测试激励；上电默认关闭。 */
 esp_err_t set_short_test_enabled(bool enabled);
 

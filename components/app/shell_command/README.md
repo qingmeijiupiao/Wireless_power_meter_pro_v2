@@ -100,6 +100,7 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 | `meter` | 查询或重置 UI/Web/Shell 共用的电量计量会话，输出相对累计值、LP Core 自启动累计值、计量时间、系统时间和实时功率 | `[status|reset]` |
 | `blackbox` | 查询黑匣子状态、拉取日志、同步清空日志分区或写入测试标记 | `[status|dump [count\|all]|pull [count\|all]|clear|mark <text>]` |
 | `output` | 设置/查询输出状态 | `[0/1]` |
+| `short_detect` | 手动执行输出端短路检测或配置检测阈值 | `status|test|threshold [voltage_V]` |
 | `protect` | 设置/查询保护阻断状态和各保护通道 | `[0/1]` |
 | `protect_threshold` | 查询或设置保护阈值，修改后立即生效并保存到 NVS | `[channel warning warning_recovery protect protect_recovery]` |
 | `wifi` | 管理 WiFi/Web 并显示 ESP-NOW 诊断，支持切换 ESPNOW_ONLY、STA 和 AP 配网 | `status|ip|on|off|connect <ssid> [password]|ap|boot [0/1]|clear` |
@@ -107,6 +108,17 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 | `ina228_register` | 查看 INA228 原始寄存器指针值 | 无 |
 | `calibration_params` | 查看电流校准参数 | 无 |
 | `factory_mode` | 进入工厂模式，旁路保护并注册校准写入命令 | 无 |
+
+### `short_detect` 子命令
+
+| 子命令 | 说明 |
+|--------|------|
+| `short_detect` / `short_detect status` | 显示当前短路检测阈值和测试注意事项 |
+| `short_detect test` | 短时输出测试激励，读取检测电压并输出 `SHORT` 或 `OPEN` |
+| `short_detect threshold` | 查询当前 NVS 阈值 |
+| `short_detect threshold <voltage_V>` | 使用伏特为单位设置阈值并立即保存到 NVS |
+
+当前命令仅用于 bring-up 手动验证。执行 `test` 前应确保主输出关闭。
 
 ### `wifi` 子命令
 
@@ -167,6 +179,7 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 - [`espnow_link`](../../middleware/espnow_link/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 - [`shell`](../../bsp/shell/README.md)（`bsp`）
+- [`short_circuit_detect`](../../middleware/short_circuit_detect/README.md)（`middleware`）
 - [`st7789_driver`](../../bsp/st7789_driver/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。

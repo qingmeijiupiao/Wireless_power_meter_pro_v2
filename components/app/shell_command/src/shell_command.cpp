@@ -20,6 +20,7 @@
 #include "power_output.h"
 #include "protect.h"
 #include "screen.h"
+#include "short_circuit_detect.h"
 #include "wifi_service.h"
 #include "espnow_link.h"
 #include "espnow_service.h"
@@ -567,6 +568,76 @@ esp_err_t init() {
                 printf("Output on\n");
             }
             return 0;
+        }));
+
+    /**
+     * @brief  short_detect - 输出端短路检测调试命令
+     * @usage  short_detect [status|test|threshold [voltage_V]]
+     * @note   当前仅用于手动测试，执行 test 前应确保主输出关闭。
+     */
+    shell.register_command(ShellCommand_t(
+        "short_detect", "Short-circuit detector control", "status|test|threshold [voltage_V]",
+        [](int argc, char** argv) -> int {
+            if (argc == 1 || strcmp(argv[1], "status") == 0) {
+                if (argc > 2) {
+                    printf("Usage: short_detect status\n");
+                    return 1;
+                }
+                const uint16_t threshold_mV = ShortCircuitDetect::get_threshold_mV();
+                printf("Short detect threshold: %.3f V (%u mV)\n", threshold_mV / 1000.0f,
+                       static_cast<unsigned>(threshold_mV));
+                printf("Test pulse is idle; run 'short_detect test' with main output off\n");
+                return 0;
+            }
+
+            if (strcmp(argv[1], "test") == 0) {
+                if (argc != 2) {
+                    printf("Usage: short_detect test\n");
+                    return 1;
+                }
+                ShortCircuitDetect::Result result = {};
+                const esp_err_t err = ShortCircuitDetect::test(result);
+                if (err != ESP_OK) {
+                    printf("Short detect test failed: %s\n", esp_err_to_name(err));
+                    return 1;
+                }
+                printf("Short detect result: %s, voltage=%.3f V (%u mV), threshold=%.3f V (%u mV), samples=%u\n",
+                       result.is_short ? "SHORT" : "OPEN", result.voltage_mV / 1000.0f,
+                       static_cast<unsigned>(result.voltage_mV), result.threshold_mV / 1000.0f,
+                       static_cast<unsigned>(result.threshold_mV), static_cast<unsigned>(result.sample_count));
+                return 0;
+            }
+
+            if (strcmp(argv[1], "threshold") == 0) {
+                if (argc == 2) {
+                    const uint16_t threshold_mV = ShortCircuitDetect::get_threshold_mV();
+                    printf("Short detect threshold: %.3f V (%u mV)\n", threshold_mV / 1000.0f,
+                           static_cast<unsigned>(threshold_mV));
+                    return 0;
+                }
+                if (argc != 3) {
+                    printf("Usage: short_detect threshold <voltage_V>\n");
+                    return 1;
+                }
+
+                float threshold_V = 0.0f;
+                if (!parse_float_arg(argv[2], &threshold_V) || threshold_V < 0.001f || threshold_V > 3.3f) {
+                    printf("Error: threshold must be 0.001-3.300 V\n");
+                    return 1;
+                }
+                const uint16_t threshold_mV = static_cast<uint16_t>(std::lround(threshold_V * 1000.0f));
+                const esp_err_t err = ShortCircuitDetect::set_threshold_mV(threshold_mV);
+                if (err != ESP_OK) {
+                    printf("Short detect threshold update failed: %s\n", esp_err_to_name(err));
+                    return 1;
+                }
+                printf("Short detect threshold updated: %.3f V (%u mV)\n", threshold_mV / 1000.0f,
+                       static_cast<unsigned>(threshold_mV));
+                return 0;
+            }
+
+            printf("Usage: short_detect [status|test|threshold [voltage_V]]\n");
+            return 1;
         }));
 
     /**

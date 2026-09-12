@@ -16,11 +16,11 @@
 | 类型 | 配置项 |
 |------|--------|
 | TFT | `TFT_SCL`、`TFT_SDA`、`TFT_RST`、`TFT_RS`、`TFT_CS`、`TFT_BLK`、`TFT_BLK_ACTIVE_STATE` |
-| 温度 | `temperature_channel` |
+| ADC | `temperature_channel`、`short_detect_channel` |
 | CAN | `CAN_TX`、`CAN_RX`、`CAN_RESISTOR_ENABLE` |
 | INA228 | `INAA226_SDA`、`INAA226_SCL`、`INAA226_ALERT` |
-| 输出 | `OUTPUT_CTRL` |
-| 按键 | `MAIN_BUTTON`、`SIDE_BUTTON` |
+| 输出 | `OUTPUT_CTRL`、`SHORT_TEST_ENABLE` |
+| 按键 | `MAIN_BUTTON`、`SIDE_BUTTON`、`PREVIOUS_BUTTON` |
 
 ## 版本识别
 
@@ -53,6 +53,9 @@ const hardware_config& cfg = get_hardware_config();
 | `hardware_config_init()` | 初始化 ADC 并识别硬件版本 |
 | `get_hardware_version()` | 返回硬件版本号，未识别前为 `255` |
 | `get_hardware_config()` | 返回当前硬件版本对应的 `hardware_config` |
+| `read_short_detect_raw()` | 读取短路检测 ADC 原始值 |
+| `read_short_detect_voltage_mV()` | 读取校准后的短路检测电压，单位 mV |
+| `set_short_test_enabled()` | 设置短路测试激励电平 |
 
 ## 添加硬件版本
 
