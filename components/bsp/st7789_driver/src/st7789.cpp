@@ -478,32 +478,43 @@ static uint32_t get_char_start_index(char c, const Font_t& font) {
 }
 
 void draw_char(uint16_t x, uint16_t y, char c, color_t color, color_t bg, const Font_t& font) {
-    if (c < 32 || c > 127)
+    if (x >= display_width || y >= display_height)
+        return;
+    if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126)
         c = '?';
     uint8_t  idx           = c - 32;
     uint32_t start_index   = get_char_start_index(c, font);
-    uint32_t font_px_index = start_index;
-
-    for (uint32_t line = 0; line < font.font_height; line++) {
-        for (uint8_t col = 0; col < font.width_table[idx]; col++) {
-            uint8_t  font_val = font.font_data[font_px_index];
+    const uint16_t glyph_width = font.width_table[idx];
+    const uint16_t visible_width = std::min<uint16_t>(glyph_width, display_width - x);
+    const uint16_t visible_height = std::min<uint16_t>(font.font_height, display_height - y);
+    for (uint32_t line = 0; line < visible_height; line++) {
+        for (uint16_t col = 0; col < visible_width; col++) {
+            uint8_t font_val = font.font_data[start_index + line * glyph_width + col];
             uint16_t px       = map_px_data(font_val, bg.get_color_raw(), color.get_color_raw());
             px                = (px >> 8) | (px << 8);
             double_buffer.data[double_buffer.current_buffer][(y + line) * display_width + x + col] = px;
-            font_px_index++;
         }
     }
 }
 
 void draw_string(uint16_t x, uint16_t y, const char* str, color_t color, color_t bg, const Font_t& font) {
-    uint16_t cx = x;
+    if (str == nullptr)
+        return;
+    uint32_t cx = x;
+    uint32_t cy = y;
     while (*str) {
         if (*str == '\n') {
-            y  += font.font_height;
+            cy += font.font_height;
             cx  = x;
         } else {
-            ST7789::draw_char(cx, y, *str, color, bg, font);
-            cx += font.width_table[*str - 32];
+            const unsigned char raw = static_cast<unsigned char>(*str);
+            const char c = raw >= 32 && raw <= 126 ? static_cast<char>(raw) : '?';
+            if (cy >= display_height)
+                return;
+            if (cx < display_width)
+                ST7789::draw_char(static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), c, color, bg, font);
+            // Saturate long off-screen lines; a following newline can still restart at x.
+            cx = std::min<uint32_t>(display_width, cx + font.width_table[c - 32]);
         }
         str++;
     }
@@ -540,8 +551,9 @@ uint8_t get_backlight() {
 }
 
 void draw_image(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
-    if (x >= display_width || y >= display_height)
+    if (data == nullptr || x >= display_width || y >= display_height)
         return;
+    const uint16_t source_stride = w;
     if (x + w > display_width)
         w = display_width - x;
     if (y + h > display_height)
@@ -549,7 +561,7 @@ void draw_image(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* 
     uint16_t px;
     for (uint16_t row = 0; row < h; row++) {
         for (uint16_t col = 0; col < w; col++) {
-            px = data[row * w + col];
+            px = data[row * source_stride + col];
             double_buffer.data[double_buffer.current_buffer][(y + row) * display_width + (x + col)] =
                 (px >> 8) | (px << 8);
         }

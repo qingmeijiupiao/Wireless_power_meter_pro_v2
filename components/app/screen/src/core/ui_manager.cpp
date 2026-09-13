@@ -94,7 +94,7 @@ void UIManager::apply_saved_display_config() {
     bool    rotate_180 = ui_config_get_rotation_180();
     uint8_t level      = ui_config_get_backlight_level();
 
-    // 页面仍使用 160x80 逻辑坐标，旋转映射交给 ST7789 驱动处理。
+    // 页面仍使用 240x135 逻辑坐标，旋转映射交给 ST7789 驱动处理。
     ST7789::set_rotation(rotate_180 ? ST7789::Rotation::HorizontalMirror : ST7789::Rotation::Horizontal);
     ST7789::set_backlight(backlight_value_from_level(level));
 }

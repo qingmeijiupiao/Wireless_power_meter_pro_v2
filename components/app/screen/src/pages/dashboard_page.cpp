@@ -3,7 +3,7 @@
  * @LastEditors: qingmeijiupiao
  * @Description: 实时测量主页实现
  * @Author: qingmeijiupiao
- * @LastEditTime: 2026-06-24
+ * @LastEditTime: 2026-09-13 00:37:29
  */
 #include "pages/dashboard_page.h"
 
@@ -14,16 +14,14 @@
 
 #include "blackbox.h"
 #include "diagnostic_log.h"
-#include "DENGB12.h"
 #include "DENGB16.h"
 #include "DENGB20.h"
+#include "DENGB44_NUM.h"
 #include "current_calibration.h"
 #include "energy_meter.h"
 #include "espnow_link.h"
 #include "espnow_service.h"
 #include "esp_log.h"
-#include "ErrorRectangle.h"
-#include "WarningRectangle.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
 #include "can_resistor.h"
@@ -31,21 +29,11 @@
 #include "freertos/task.h"
 #include "global_state.h"
 #include "HXC_NVS.h"
-#include "meter_a_logo.h"
-#include "meter_circle_green.h"
-#include "meter_circle_red.h"
-#include "meter_v_logo.h"
-#include "meter_w_logo.h"
-#include "settings_logo.h"
 #include "st7789.h"
+#include "widgets/ui_chrome.h"
 #include "ota_service.h"
-#include "ui_close.h"
-#include "ui_open.h"
-#include "ui_static.h"
 #include "wifi_manager.h"
 #include "wifi_service.h"
-#include "ah_logo.h"
-#include "wh_logo.h"
 
 namespace SCREEN {
 namespace {
@@ -73,9 +61,7 @@ PageId DashboardPage::id() const {
 }
 
 /** @brief 返回主页标题。 */
-const char* DashboardPage::title() const {
-    return "Main";
-}
+const char *DashboardPage::title() const { return "Main"; }
 
 /** @brief 返回主页刷新周期。 */
 uint32_t DashboardPage::refresh_interval_ms() const {
@@ -88,66 +74,46 @@ uint32_t DashboardPage::refresh_interval_ms() const {
  */
 void DashboardPage::render(RenderMode mode) {
     (void)mode;
-    char        temp_str[16];
-    const auto  global_state       = get_global_state();
-    const auto& global_state_flags = global_state.flags;
-    const auto& protect_states     = global_state.protect_states.states_bit;
-    const float voltage            = global_state.voltage_mV / 1000.0f;
-    const float current            = std::abs(global_state.current_uA / 1000000.0f);
-
-    auto draw_static_layout = []() {
         ST7789::fill_screen(ST7789::BLACK);
-        ST7789::draw_image(4, 4, STATIC_WIDTH, STATIC_HEIGHT, static_data);
-        ST7789::fill_rect(106, 0, 2, 80, ST7789::YELLOW);
-        ST7789::fill_rect(108, 13, 52, 2, ST7789::YELLOW);
-    };
+    const auto state = get_global_state();
+    const float voltage = state.voltage_mV / 1000.0f;
+    const float current = std::abs(state.current_uA / 1000000.0f);
+    char line[32];
 
-    auto draw_measurements = [&]() {
-        snprintf(temp_str, sizeof(temp_str), "%.3fV", voltage);
-        ST7789::draw_string(28, 4, temp_str, ST7789::color_t(0xef2a2a), ST7789::BLACK, DENGB20);
-        snprintf(temp_str, sizeof(temp_str), "%.3fA", current);
-        ST7789::draw_string(28, 27, temp_str, ST7789::color_t(0x1ef851), ST7789::BLACK, DENGB20);
-        snprintf(temp_str, sizeof(temp_str), "%.3fW", current * voltage);
-        ST7789::draw_string(28, 49, temp_str, ST7789::color_t(0x003ED0), ST7789::BLACK, DENGB16);
+    ST7789::fill_rect(166, 6, 1, 99, UI::GRID);
+    snprintf(line, sizeof(line), "%.3fV", voltage);
+    UI::text(6, 4, 159, 47, line, UI::VOLTAGE, ST7789::BLACK, DENGB44_NUM);
+    UI::format_fixed_digits(line, sizeof(line), current, "A", 5, 3, false);
+    UI::text(5, 55, 161, 47, line, UI::CURRENT, ST7789::BLACK, DENGB44_NUM);
 
-        const float temperature = global_state.board_temperature / 100.0f;
-        if (temperature >= 100.0f || temperature < 0.0f) {
-            snprintf(temp_str, sizeof(temp_str), "%dC", static_cast<int>(temperature));
-        } else {
-            snprintf(temp_str, sizeof(temp_str), "%.1fC", temperature);
-        }
-        ST7789::draw_string(28, 69, temp_str, ST7789::color_t(0xb3261e), ST7789::BLACK, DENGB12);
-    };
-
-    auto draw_uptime = [&]() {
-        const uint32_t total_seconds = (xTaskGetTickCount() * portTICK_PERIOD_MS) / 1000;
-        format_duration(temp_str, sizeof(temp_str), nullptr, total_seconds);
-        ST7789::draw_string(111, 2, temp_str, ST7789::WHITE, ST7789::BLACK, DENGB12);
-    };
-
-    auto draw_output_state = [&]() {
-        const bool enabled = global_state_flags.output_enabled;
-        ST7789::draw_image(62, 66, enabled ? OPEN_WIDTH : CLOSE_WIDTH, enabled ? OPEN_HEIGHT : CLOSE_HEIGHT,
-                           enabled ? open_data : close_data);
-    };
-
-    auto draw_protect_states = [&]() {
-        draw_protect_tag(113, 18, "OTP", protect_states.temperature_protect_state);
-        ProtectState_t voltage_state = protect_states.high_voltage_protect_state;
+    const uint32_t seconds = (xTaskGetTickCount() * portTICK_PERIOD_MS) / 1000;
+    format_duration(line, sizeof(line), nullptr, seconds);
+    UI::text(172, 6, 62, 18, line, ST7789::WHITE, ST7789::BLACK, DENGB16, UI::Align::Center);
+    const auto &protection = state.protect_states.states_bit;
+    draw_protect_tag(174, 29, "OTP", protection.temperature_protect_state);
+    ProtectState_t voltage_state = protection.high_voltage_protect_state;
         const char*    voltage_text  = "OVP";
         if (voltage_state == PROTECT_STATE_NORMAL) {
-            voltage_state = protect_states.low_voltage_protect_state;
+        voltage_state = protection.low_voltage_protect_state;
             voltage_text  = "UVP";
-        }
-        draw_protect_tag(113, 39, voltage_text, voltage_state);
-        draw_protect_tag(113, 60, "OCP", protect_states.current_protect_state);
-    };
+    }
+    draw_protect_tag(174, 55, voltage_text, voltage_state);
+    draw_protect_tag(174, 81, "OCP", protection.current_protect_state);
 
-    draw_static_layout();
-    draw_measurements();
-    draw_uptime();
-    draw_output_state();
-    draw_protect_states();
+    ST7789::fill_rect(6, 107, 228, 1, UI::GRID);
+    UI::badge(6, 113, 24, 16, "W", ST7789::BLACK, UI::POWER, DENGB16);
+    UI::format_fixed_digits(line, sizeof(line), voltage * current, "", 5, 3, false);
+    UI::text(34, 114, 66, 16, line, UI::POWER, ST7789::BLACK, DENGB16);
+    UI::badge(108, 113, 20, 16, "T", UI::MUTED, UI::PANEL, DENGB16);
+    const float temperature = state.board_temperature / 100.0f;
+        if (temperature >= 100.0f || temperature < 0.0f) {
+        snprintf(line, sizeof(line), "%dC", static_cast<int>(temperature));
+        } else {
+        snprintf(line, sizeof(line), "%.1fC", temperature);
+    }
+    UI::text(132, 114, 52, 16, line, UI::CURRENT, ST7789::BLACK, DENGB16);
+    const bool enabled = state.flags.output_enabled;
+    UI::badge(190, 113, 44, 16, enabled ? "ON" : "OFF", ST7789::BLACK, enabled ? UI::CURRENT : UI::VOLTAGE, DENGB16);
 }
 
 /**
@@ -158,22 +124,12 @@ void DashboardPage::render(RenderMode mode) {
  * @param state 保护状态。
  */
 void DashboardPage::draw_protect_tag(uint16_t x, uint16_t y, const char* text, ProtectState_t state) {
-    if (state == PROTECT_STATE_NORMAL) {
-        return;
-    }
-
-    ST7789::color_t warning_background_color;
-    warning_background_color.set_color_raw(0xFE60);
-    ST7789::color_t error_background_color;
-    error_background_color.set_color_raw(0xB123);
-
     if (state == PROTECT_STATE_PROTECT) {
-        ST7789::draw_image(x, y, ERRORRECTANGLE_WIDTH, ERRORRECTANGLE_HEIGHT, ErrorRectangle_data);
-        ST7789::draw_string(x + 5, y + 2, text, ST7789::BLACK, error_background_color, DENGB16);
+        UI::badge(x, y, 60, 21, text, ST7789::WHITE, UI::VOLTAGE);
     } else if (state == PROTECT_STATE_WARNING) {
-        ST7789::draw_image(x, y, WARNINGRECTANGLE_WIDTH, WARNINGRECTANGLE_HEIGHT, WarningRectangle_data);
-        ST7789::draw_string(x + 5, y + 2, text, ST7789::BLACK, warning_background_color, DENGB16);
+        UI::badge(x, y, 60, 21, text, ST7789::BLACK, UI::YELLOW);
     }
+    // Normal states stay hidden, as in Lite. Figma's colored tags are examples.
 }
 
 } // namespace SCREEN

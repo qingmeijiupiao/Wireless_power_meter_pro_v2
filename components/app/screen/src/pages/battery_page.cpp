@@ -3,7 +3,7 @@
  * @LastEditors: qingmeijiupiao
  * @Description: 累计电量页面实现
  * @Author: qingmeijiupiao
- * @LastEditTime: 2026-06-24
+ * @LastEditTime: 2026-09-13 10:10:52
  */
 #include "pages/battery_page.h"
 
@@ -14,16 +14,15 @@
 
 #include "blackbox.h"
 #include "diagnostic_log.h"
-#include "DENGB12.h"
 #include "DENGB16.h"
 #include "DENGB20.h"
+#include "DENGB44_NUM.h"
+#include "DENGB28_UNITS.h"
 #include "current_calibration.h"
 #include "energy_meter.h"
 #include "espnow_link.h"
 #include "espnow_service.h"
 #include "esp_log.h"
-#include "ErrorRectangle.h"
-#include "WarningRectangle.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
 #include "can_resistor.h"
@@ -31,71 +30,32 @@
 #include "freertos/task.h"
 #include "global_state.h"
 #include "HXC_NVS.h"
-#include "meter_a_logo.h"
-#include "meter_circle_green.h"
-#include "meter_circle_red.h"
-#include "meter_v_logo.h"
-#include "meter_w_logo.h"
-#include "settings_logo.h"
 #include "st7789.h"
+#include "widgets/ui_chrome.h"
 #include "ota_service.h"
-#include "ui_close.h"
-#include "ui_open.h"
-#include "ui_static.h"
 #include "wifi_manager.h"
 #include "wifi_service.h"
-#include "ah_logo.h"
-#include "wh_logo.h"
 
 namespace SCREEN {
 namespace {
 
 constexpr char TAG[] = "ScreenPages";
 
-/**
- * @brief 计算 10 的非负整数次幂。
- * @param exponent 指数。
- * @return 10 的 exponent 次幂。
- */
-double pow10(uint8_t exponent) {
-    double value = 1.0;
-    while (exponent-- > 0) {
-        value *= 10.0;
-    }
-    return value;
-}
-
-/**
- * @brief 按最大数字位数格式化绝对值，并在末尾附加单位。
- *
- * 小数点和单位不计入 max_digits。数值增大时会逐步减少小数位；
- * clamp 为 true 时，超出显示范围的值会封顶为全 9。
- *
- * @param line 输出缓冲区。
- * @param line_size 输出缓冲区大小。
- * @param value 待格式化数值。
- * @param unit 单位后缀。
- * @param max_digits 最大数字位数。
- * @param max_precision 最多保留的小数位数。
- * @param clamp 是否在超出显示范围时封顶。
- */
-void format_fixed_digits(char* line, size_t line_size, double value, const char* unit, uint8_t max_digits,
-                         uint8_t max_precision, bool clamp) {
-    value         = std::abs(value);
-    int precision = max_precision;
-    while (precision > 0) {
-        const double rounding_limit = pow10(max_digits - precision) - 0.5 / pow10(precision);
-        if (value < rounding_limit) {
-            break;
+// Preserve the 44px font by fitting precision before drawing the combined value/unit.
+const char* format_capacity(char* line, size_t size, double milli_value, bool energy) {
+    milli_value = std::abs(milli_value);
+    for (int scale = milli_value >= 999.5 ? 1 : 0; scale <= 1; ++scale) {
+        const double value = scale ? milli_value / 1000.0 : milli_value;
+        const char* unit = energy ? (scale ? "Wh" : "mWh") : (scale ? "Ah" : "mAh");
+        for (int precision = 3; precision >= 0; --precision) {
+            snprintf(line, size, "%.*f", precision, value);
+            if (UI::text_width(line, DENGB44_NUM) + UI::text_width(unit, DENGB28_UNITS) + 3 <= 178)
+                return unit;
         }
-        precision--;
     }
-
-    if (clamp && value >= pow10(max_digits) - 0.5) {
-        snprintf(line, line_size, "%.*s%s", max_digits, "9999999999", unit);
-        return;
-    }
-    snprintf(line, line_size, "%.*f%s", precision, value, unit);
+    // Very large accumulated totals retain the base unit with an explicit exponent.
+    snprintf(line, size, "%.0e", milli_value / 1000.0);
+    return energy ? "Wh" : "Ah";
 }
 
 /**
@@ -120,9 +80,7 @@ PageId BatteryPage::id() const {
 }
 
 /** @brief 返回电量页标题。 */
-const char* BatteryPage::title() const {
-    return "Battery";
-}
+const char *BatteryPage::title() const { return "Battery"; }
 
 /** @brief 返回电量页刷新周期。 */
 uint32_t BatteryPage::refresh_interval_ms() const {
@@ -152,58 +110,32 @@ bool BatteryPage::handle_button(ButtonId button, ButtonEvent event) {
 void BatteryPage::render(RenderMode mode) {
     (void)mode;
     ST7789::fill_screen(ST7789::BLACK);
-
-    const EnergyMeter::Snapshot meter          = EnergyMeter::snapshot();
-    const int64_t               meter_uwh      = meter.energy_uwh;
-    const int64_t               meter_uah      = meter.charge_uah;
-    const auto                  global_state   = get_global_state();
-    const float                 voltage        = global_state.voltage_mV / 1000.0f;
-    const float                 current        = global_state.current_uA / 1000000.0f;
-    const float                 power          = voltage * current;
-    const uint32_t              system_seconds = (xTaskGetTickCount() * portTICK_PERIOD_MS) / 1000;
-    const uint64_t              meter_seconds  = meter.meter_time_ms / 1000;
-
+    const auto meter = EnergyMeter::snapshot();
+    const auto state = get_global_state();
+    const float voltage = state.voltage_mV / 1000.0f;
+    const float current = state.current_uA / 1000000.0f;
     char line[32];
-
-    auto draw_realtime_status = [&]() {
-        ST7789::draw_image(2, 4, METER_V_LOGO_WIDTH, METER_V_LOGO_HEIGHT, meter_v_logo_data);
-        format_fixed_digits(line, sizeof(line), voltage, "V", 3, 2, true);
-        ST7789::draw_string(12, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
-
-        ST7789::draw_image(48, 4, METER_A_LOGO_WIDTH, METER_A_LOGO_HEIGHT, meter_a_logo_data);
-        format_fixed_digits(line, sizeof(line), current, "A", 3, 2, true);
-        ST7789::draw_string(58, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
-
-        ST7789::draw_image(93, 4, METER_W_LOGO_WIDTH, METER_W_LOGO_HEIGHT, meter_w_logo_data);
-        format_fixed_digits(line, sizeof(line), power, "W", 3, 2, true);
-        ST7789::draw_string(106, 5, line, ST7789::WHITE, ST7789::BLACK, DENGB12);
-
-        const bool output_enabled = global_state.flags.output_enabled;
-        ST7789::draw_image(145, 4, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
-                           output_enabled ? METER_CIRCLE_GREEN_HEIGHT : METER_CIRCLE_RED_HEIGHT,
-                           output_enabled ? meter_circle_green_data : meter_circle_red_data);
-    };
-
-    auto draw_meter_values = [&]() {
-        ST7789::draw_image(2, 18, WH_LOGO_WIDTH, WH_LOGO_HEIGHT, wh_logo_data);
-        format_fixed_digits(line, sizeof(line), meter_uwh / 1000.0, "mWh", 6, 3, false);
-        ST7789::draw_string(34, 20, line, ST7789::color_t(0x003ED0), ST7789::BLACK, DENGB20);
-
-        ST7789::draw_image(2, 43, AH_LOGO_WIDTH, AH_LOGO_HEIGHT, ah_logo_data);
-        format_fixed_digits(line, sizeof(line), meter_uah / 1000.0, "mAh", 6, 3, false);
-        ST7789::draw_string(34, 45, line, ST7789::color_t(0x1ef851), ST7789::BLACK, DENGB20);
-    };
-
-    auto draw_time_values = [&]() {
-        format_duration(line, sizeof(line), "S:", system_seconds);
-        ST7789::draw_string(2, 68, line, ST7789::color_t(0x2FC9EC), ST7789::BLACK, DENGB12);
-        format_duration(line, sizeof(line), "M:", meter_seconds);
-        ST7789::draw_string(90, 68, line, ST7789::color_t(0x1EF851), ST7789::BLACK, DENGB12);
-    };
-
-    draw_realtime_status();
-    draw_meter_values();
-    draw_time_values();
+    const float values[] = {voltage, current, voltage * current};
+    const char *units[] = {"V", "A", "W"};
+    const ST7789::color_t colors[] = {UI::VOLTAGE, UI::CURRENT, UI::POWER};
+    for (uint8_t i = 0; i < 3; ++i) {
+        UI::format_fixed_digits(line, sizeof(line), values[i], units[i], 3, 2, true);
+        UI::text(6 + i * 49, 5, 48, 18, line, colors[i], ST7789::BLACK, DENGB16);
+    }
+    format_duration(line, sizeof(line), nullptr, meter.meter_time_ms / 1000);
+    UI::text(154, 5, 62, 18, line, UI::CYAN, ST7789::BLACK, DENGB16, UI::Align::Right);
+    UI::output_dot(state.flags.output_enabled);
+    ST7789::fill_rect(6, 26, 228, 1, UI::GRID);
+    const double totals[] = {meter.energy_uwh / 1000.0, meter.charge_uah / 1000.0};
+    for (uint8_t i = 0; i < 2; ++i) {
+        const uint16_t y = 32 + i * 50;
+        const auto color = i == 0 ? UI::POWER : UI::CURRENT;
+        UI::badge(9, y + 5, 40, 37, i == 0 ? "W" : "A", ST7789::BLACK, color, DENGB28_UNITS);
+        const char* unit = format_capacity(line, sizeof(line), totals[i], i == 0);
+        const uint16_t unit_width = UI::text_width(unit, DENGB28_UNITS);
+        UI::text(56, y + 3, 178 - unit_width - 3, 47, line, color, ST7789::BLACK, DENGB44_NUM);
+        UI::text(234 - unit_width, y + 20, unit_width, 27, unit, color, ST7789::BLACK, DENGB28_UNITS);
+    }
 }
 
 /** @brief 返回曲线页 ID。 */

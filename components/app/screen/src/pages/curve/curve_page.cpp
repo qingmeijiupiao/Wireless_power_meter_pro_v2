@@ -13,7 +13,6 @@
 
 #include "blackbox.h"
 #include "diagnostic_log.h"
-#include "DENGB12.h"
 #include "DENGB16.h"
 #include "DENGB20.h"
 #include "current_calibration.h"
@@ -21,8 +20,6 @@
 #include "espnow_link.h"
 #include "espnow_service.h"
 #include "esp_log.h"
-#include "ErrorRectangle.h"
-#include "WarningRectangle.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
 #include "can_resistor.h"
@@ -30,21 +27,11 @@
 #include "freertos/task.h"
 #include "global_state.h"
 #include "HXC_NVS.h"
-#include "meter_a_logo.h"
-#include "meter_circle_green.h"
-#include "meter_circle_red.h"
-#include "meter_v_logo.h"
-#include "meter_w_logo.h"
-#include "settings_logo.h"
 #include "st7789.h"
+#include "widgets/ui_chrome.h"
 #include "ota_service.h"
-#include "ui_close.h"
-#include "ui_open.h"
-#include "ui_static.h"
 #include "wifi_manager.h"
 #include "wifi_service.h"
-#include "ah_logo.h"
-#include "wh_logo.h"
 
 namespace SCREEN {
 namespace {
@@ -81,59 +68,13 @@ static_assert(sizeof(CurveConfig) == 4, "CurveConfig size mismatch");
 
 constexpr uint8_t     CURVE_CONFIG_VERSION = 1;
 constexpr CurveConfig DEFAULT_CURVE_CONFIG = {
-    .version      = CURVE_CONFIG_VERSION,
+    .version = CURVE_CONFIG_VERSION,
     .display_mode = 0, // CurvePage::DisplayMode::Voltage
     .window_index = 1, // 30s
-    .reserved     = 0,
+    .reserved = 0,
 };
 
 HXC::NVS_DATA<CurveConfig> curve_config_data("ui_curve_cfg", DEFAULT_CURVE_CONFIG);
-
-/**
- * @brief 计算 10 的非负整数次幂。
- * @param exponent 指数。
- * @return 10 的 exponent 次幂。
- */
-double pow10(uint8_t exponent) {
-    double value = 1.0;
-    while (exponent-- > 0) {
-        value *= 10.0;
-    }
-    return value;
-}
-
-/**
- * @brief 按最大数字位数格式化绝对值，并在末尾附加单位。
- *
- * 小数点和单位不计入 max_digits。数值增大时会逐步减少小数位；
- * clamp 为 true 时，超出显示范围的值会封顶为全 9。
- *
- * @param line 输出缓冲区。
- * @param line_size 输出缓冲区大小。
- * @param value 待格式化数值。
- * @param unit 单位后缀。
- * @param max_digits 最大数字位数。
- * @param max_precision 最多保留的小数位数。
- * @param clamp 是否在超出显示范围时封顶。
- */
-void format_fixed_digits(char* line, size_t line_size, double value, const char* unit, uint8_t max_digits,
-                         uint8_t max_precision, bool clamp) {
-    value         = std::abs(value);
-    int precision = max_precision;
-    while (precision > 0) {
-        const double rounding_limit = pow10(max_digits - precision) - 0.5 / pow10(precision);
-        if (value < rounding_limit) {
-            break;
-        }
-        precision--;
-    }
-
-    if (clamp && value >= pow10(max_digits) - 0.5) {
-        snprintf(line, line_size, "%.*s%s", max_digits, "9999999999", unit);
-        return;
-    }
-    snprintf(line, line_size, "%.*f%s", precision, value, unit);
-}
 
 /**
  * @brief 将曲线状态数值限制为最多 3 位数字。
@@ -142,7 +83,7 @@ void format_fixed_digits(char* line, size_t line_size, double value, const char*
  * @param value 待格式化数值。
  */
 void format_curve_value(char* line, size_t line_size, float value) {
-    format_fixed_digits(line, line_size, value, "", 3, 2, true);
+    UI::format_fixed_digits(line, line_size, value, "", 3, 2, true);
 }
 
 /**
@@ -170,48 +111,14 @@ float nice_curve_step(float value) {
     return 10.0f * scale;
 }
 
-/**
- * @brief 计算 DENGB12 字体文本宽度。
- * @param text 待测量文本。
- * @return 文本像素宽度。
- */
-uint16_t curve_text_width(const char* text) {
-    uint16_t width = 0;
-    while (text != nullptr && *text != '\0') {
-        const uint8_t character = static_cast<uint8_t>(*text++);
-        if (character >= ' ' && character <= 127) {
-            width += DENGB12.width_table[character - ' '];
-        }
-    }
-    return width;
-}
-
-/**
- * @brief 绘制曲线页圆角文字标签。
- * @param x 左上角 X 坐标。
- * @param y 左上角 Y 坐标。
- * @param width 标签宽度。
- * @param text 标签文本。
- * @param foreground 文字颜色。
- * @param background 背景颜色。
- * @param outlined 是否绘制边框。
- * @param outline_color 边框颜色。
- */
+// Shared geometry/text widget; edit outlines retain the original behavior.
 void draw_curve_badge(uint16_t x, uint16_t y, uint16_t width, const char* text, ST7789::color_t foreground,
-                      ST7789::color_t background, bool outlined = false,
-                      ST7789::color_t outline_color = ST7789::YELLOW) {
-    constexpr uint16_t badge_height = 13;
-    constexpr uint16_t badge_radius = 4;
-    ST7789::fill_round_rect(x, y, width, badge_height, badge_radius, background, ST7789::BLACK);
+                      ST7789::color_t background, bool outlined = false, ST7789::color_t outline_color = UI::YELLOW) {
+    UI::badge(x, y, width, 20, text, foreground, background, DENGB16);
     if (outlined) {
-        // 驱动的边框图元会同步重绘内部背景，因此必须先画边框再画文字。
-        ST7789::draw_round_rect(x, y, width, badge_height, badge_radius, 1, outline_color, background);
+        ST7789::draw_round_rect(x, y, width, 20, 4, 1, outline_color, background);
+        UI::text(x + 3, y, width - 6, 20, text, foreground, background, DENGB16, UI::Align::Center);
     }
-
-    const uint16_t text_width = curve_text_width(text);
-    const uint16_t text_x     = x + (width > text_width ? (width - text_width) / 2 : 0);
-    // 曲线页全部文字基线统一下移 1px。
-    ST7789::draw_string(text_x, y + 2, text, foreground, background, DENGB12);
 }
 
 } // namespace
@@ -221,9 +128,7 @@ PageId CurvePage::id() const {
 }
 
 /** @brief 返回曲线页标题。 */
-const char* CurvePage::title() const {
-    return "Curve";
-}
+const char *CurvePage::title() const { return "Curve"; }
 
 /** @brief 返回曲线页刷新周期。 */
 uint32_t CurvePage::refresh_interval_ms() const {
@@ -323,9 +228,7 @@ const char* CurvePage::display_mode_text() const {
     }
 }
 
-const char* CurvePage::window_text() const {
-    return CURVE_WINDOW_TEXT[window_index_];
-}
+const char *CurvePage::window_text() const { return CURVE_WINDOW_TEXT[window_index_]; }
 
 void CurvePage::load_config() {
     const CurveConfig config = curve_config_data.read();
@@ -482,10 +385,10 @@ void CurvePage::draw_bucket_curve(const CurveBucket* buckets, size_t bucket_coun
 }
 
 void CurvePage::draw_single_metric(CurveMetric metric, ST7789::color_t color) {
-    constexpr uint16_t plot_x      = 31;
-    constexpr uint16_t plot_y      = 16;
-    constexpr uint16_t plot_width  = ST7789::WIDTH - plot_x;
-    constexpr uint16_t plot_height = ST7789::HEIGHT - plot_y;
+    constexpr uint16_t plot_x = 50;
+    constexpr uint16_t plot_y = 32;
+    constexpr uint16_t plot_width = ST7789::WIDTH - plot_x - 5;
+    constexpr uint16_t plot_height = ST7789::HEIGHT - plot_y - 6;
     CurveHistory::instance().build_buckets(metric, window_ms(), buckets_, plot_width);
     const uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
     update_auto_range(metric, buckets_, plot_width, now_ms);
@@ -493,7 +396,7 @@ void CurvePage::draw_single_metric(CurveMetric metric, ST7789::color_t color) {
     draw_grid(plot_x, plot_y, plot_width, plot_height);
     draw_bucket_curve(buckets_, plot_width, ranges_[static_cast<uint8_t>(metric)], plot_x, plot_y, plot_height, color);
 
-    bool  have_data       = false;
+    bool have_data = false;
     float visible_minimum = 0.0f;
     float visible_maximum = 0.0f;
     for (size_t i = 0; i < plot_width; ++i) {
@@ -504,7 +407,7 @@ void CurvePage::draw_single_metric(CurveMetric metric, ST7789::color_t color) {
         if (!have_data) {
             visible_minimum = bucket.minimum;
             visible_maximum = bucket.maximum;
-            have_data       = true;
+            have_data = true;
         } else {
             visible_minimum = std::min(visible_minimum, bucket.minimum);
             visible_maximum = std::max(visible_maximum, bucket.maximum);
@@ -517,21 +420,18 @@ void CurvePage::draw_single_metric(CurveMetric metric, ST7789::color_t color) {
         format_curve_value(maximum_text, sizeof(maximum_text), visible_maximum);
         format_curve_value(minimum_text, sizeof(minimum_text), visible_minimum);
 
-        // 左侧 64px 高度按 MAX、最大值、最小值、MIN 顺序排满。
-        const ST7789::color_t maximum_color(0xFFC247);
-        const ST7789::color_t minimum_color(0x4DD9FF);
-        draw_curve_badge(1, 17, 28, "MAX", ST7789::BLACK, ST7789::color_t(0xFF8A00));
-        draw_curve_badge(1, 32, 28, maximum_text, maximum_color, ST7789::color_t(0x181108), true, maximum_color);
-        draw_curve_badge(1, 49, 28, minimum_text, minimum_color, ST7789::color_t(0x081418), true, minimum_color);
-        draw_curve_badge(1, 66, 28, "MIN", ST7789::BLACK, ST7789::color_t(0x2FC9EC));
+        UI::badge(6, 33, 42, 20, "MAX", ST7789::BLACK, UI::YELLOW, DENGB16);
+        UI::text(6, 58, 38, 22, maximum_text, UI::YELLOW, ST7789::BLACK, DENGB16, UI::Align::Center);
+        UI::text(6, 86, 38, 22, minimum_text, UI::CYAN, ST7789::BLACK, DENGB16, UI::Align::Center);
+        UI::badge(6, 110, 38, 19, "MIN", ST7789::BLACK, UI::CYAN, DENGB16);
     }
 }
 
 void CurvePage::draw_all_metrics() {
-    constexpr uint16_t    plot_x      = 2;
-    constexpr uint16_t    plot_y      = 16;
-    constexpr uint16_t    plot_width  = ST7789::WIDTH - 2;
-    constexpr uint16_t    plot_height = ST7789::HEIGHT - plot_y;
+    constexpr uint16_t plot_x = 6;
+    constexpr uint16_t plot_y = 32;
+    constexpr uint16_t plot_width = ST7789::WIDTH - 12;
+    constexpr uint16_t plot_height = ST7789::HEIGHT - plot_y - 6;
     constexpr CurveMetric metrics[]   = {
         CurveMetric::Voltage,
         CurveMetric::Current,
@@ -540,7 +440,7 @@ void CurvePage::draw_all_metrics() {
     const ST7789::color_t colors[] = {
         ST7789::color_t(0xef2a2a),
         ST7789::color_t(0x1ef851),
-        ST7789::color_t(0x003ED0),
+        ST7789::color_t(0x469CFF),
     };
     const uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
@@ -563,7 +463,7 @@ void CurvePage::render(RenderMode mode) {
 
     const ST7789::color_t voltage_color(0xef2a2a);
     const ST7789::color_t current_color(0x1ef851);
-    const ST7789::color_t power_color(0x003ED0);
+    const ST7789::color_t power_color(0x469CFF);
     const ST7789::color_t time_color(0x2FC9EC);
     const ST7789::color_t now_color(0xF2C94C);
     const ST7789::color_t value_background(0x101010);
@@ -581,30 +481,28 @@ void CurvePage::render(RenderMode mode) {
         mode_color      = ST7789::YELLOW;
         mode_foreground = ST7789::BLACK;
     }
-    draw_curve_badge(2, 1, 31, display_mode_text(), mode_foreground, mode_color, display_selected);
+    draw_curve_badge(6, 5, 36, display_mode_text(), mode_foreground, mode_color, display_selected);
 
     if (display_mode_ == DisplayMode::All) {
-        draw_curve_badge(36, 1, 18, "V", ST7789::WHITE, voltage_color);
-        draw_curve_badge(57, 1, 18, "A", ST7789::BLACK, current_color);
-        draw_curve_badge(78, 1, 18, "W", ST7789::WHITE, power_color);
+        draw_curve_badge(44, 5, 30, "V", ST7789::WHITE, voltage_color);
+        draw_curve_badge(79, 5, 30, "A", ST7789::BLACK, current_color);
+        draw_curve_badge(114, 5, 30, "W", ST7789::WHITE, power_color);
     } else {
         const auto  state    = get_global_state();
         const float voltage  = state.voltage_mV / 1000.0f;
-        const float current  = std::abs(state.current_uA) / 1000000.0f;
+        const float current = std::abs(state.current_uA / 1000000.0f);
         const float value    = display_mode_ == DisplayMode::Voltage
                                                           ? voltage
                                                           : (display_mode_ == DisplayMode::Current ? current : voltage * current);
         char current_text[16];
         format_curve_value(current_text, sizeof(current_text), value);
-        draw_curve_badge(36, 1, 31, "NOW", ST7789::BLACK, now_color);
-        draw_curve_badge(71, 1, 34, current_text, mode_color, value_background, true, mode_color);
+        draw_curve_badge(46, 5, 46, "NOW", ST7789::BLACK, now_color);
+        draw_curve_badge(96, 5, 54, current_text, mode_color, value_background, true, mode_color);
     }
-    draw_curve_badge(109, 1, 32, window_text(), ST7789::BLACK, time_color, window_selected);
+    draw_curve_badge(154, 5, 54, window_text(), ST7789::BLACK, time_color, window_selected);
 
     const bool output_enabled = get_global_state().flags.output_enabled;
-    ST7789::draw_image(145, 3, output_enabled ? METER_CIRCLE_GREEN_WIDTH : METER_CIRCLE_RED_WIDTH,
-                       output_enabled ? METER_CIRCLE_GREEN_HEIGHT : METER_CIRCLE_RED_HEIGHT,
-                       output_enabled ? meter_circle_green_data : meter_circle_red_data);
+    UI::output_dot(output_enabled);
 
     switch (display_mode_) {
     case DisplayMode::Voltage:

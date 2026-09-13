@@ -42,7 +42,7 @@ enum class Rotation { Vertical = 0, Horizontal = 1, VerticalMirror = 2, Horizont
 
 /* ==================== 像素偏移 ==================== */
 static constexpr uint8_t COLSTART = 40;
-static constexpr uint8_t ROWSTART = 53;
+static constexpr uint8_t ROWSTART = 52;
 
 /**
  * @brief 显示屏硬件配置
@@ -145,7 +145,7 @@ void invert_display(bool invert);
  * @brief 绘制一个字符
  * @param x X坐标
  * @param y Y坐标
- * @param c ASCII字符（32-127）
+ * @param c ASCII字符（32-126），其余字节用问号替代；右/下边缘自动裁剪
  * @param color 文本颜色
  * @param bg 背景颜色
  * @param font 字体资源

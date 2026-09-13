@@ -68,6 +68,15 @@ python3 scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 
 输出目录以字体名称命名，包含 `.h`、`.cpp` 和 `_preview.bmp`。依赖 Pillow。
 
+可用 `--chars '0123456789.-+'` 生成数字子集，未选择的ASCII字符宽度为0、无位图数据。
+`--output-dir build_ui_assets` 可指定输出目录。省略这两个参数时保持完整ASCII生成方式。
+
+### `check_display_ui.py`
+
+`python scripts/check_display_ui.py` 使用本机C++17编译器（默认g++，可指定`--cxx`）编译实际
+显示绘图函数、字体和页面render方法。外设服务使用模拟数据，验证裁剪、字符索引、长文本和
+保护标签，并输出 `build_ui_check/ui-preview.png` 与各页状态图。需要Pillow；不连接或烧录设备。
+
 ### `image_converter.py`
 
 把 PNG、JPG、BMP 等图片转换为 ST7789 可用的 RGB565 小端序数组头文件。

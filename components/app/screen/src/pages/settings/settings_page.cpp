@@ -14,7 +14,6 @@
 
 #include "blackbox.h"
 #include "diagnostic_log.h"
-#include "DENGB12.h"
 #include "DENGB16.h"
 #include "DENGB20.h"
 #include "current_calibration.h"
@@ -22,8 +21,6 @@
 #include "espnow_link.h"
 #include "espnow_service.h"
 #include "esp_log.h"
-#include "ErrorRectangle.h"
-#include "WarningRectangle.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
 #include "can_resistor.h"
@@ -31,21 +28,11 @@
 #include "freertos/task.h"
 #include "global_state.h"
 #include "HXC_NVS.h"
-#include "meter_a_logo.h"
-#include "meter_circle_green.h"
-#include "meter_circle_red.h"
-#include "meter_v_logo.h"
-#include "meter_w_logo.h"
-#include "settings_logo.h"
 #include "st7789.h"
+#include "widgets/ui_chrome.h"
 #include "ota_service.h"
-#include "ui_close.h"
-#include "ui_open.h"
-#include "ui_static.h"
 #include "wifi_manager.h"
 #include "wifi_service.h"
-#include "ah_logo.h"
-#include "wh_logo.h"
 
 namespace SCREEN {
 namespace {
@@ -70,9 +57,7 @@ PageId SettingsPage::id() const {
 }
 
 /** @brief 返回设置页标题。 */
-const char* SettingsPage::title() const {
-    return "Settings";
-}
+const char *SettingsPage::title() const { return "Settings"; }
 
 /** @brief 返回设置页刷新周期。 */
 uint32_t SettingsPage::refresh_interval_ms() const {
@@ -182,40 +167,48 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
 void SettingsPage::render(RenderMode mode) {
     (void)mode;
     ST7789::fill_screen(ST7789::BLACK);
-    ST7789::draw_image(2, 16, SETTINGS_LOGO_WIDTH, SETTINGS_LOGO_HEIGHT, settings_logo_data);
-
-    auto draw_menu_rows = [&]() {
-        constexpr uint16_t row_x      = 60;
-        constexpr uint16_t row_w      = 98;
-        constexpr uint16_t row_h      = 22;
-        constexpr uint16_t row_y0     = 4;
-        constexpr uint16_t row_step   = 25;
-        constexpr uint16_t row_radius = 7;
-        for (uint8_t row = 0; row < VISIBLE_ROWS; row++) {
-            const uint8_t         item       = (selected_ + ITEM_COUNT + row - 1) % ITEM_COUNT;
-            const uint16_t        y          = row_y0 + row * row_step;
-            const bool            selected   = row == 1 && mode_ != Mode::View;
-            const ST7789::color_t background = selected ? ST7789::YELLOW : ST7789::color_t(0x202020);
-            const ST7789::color_t foreground = selected ? ST7789::BLACK : ST7789::WHITE;
-            ST7789::fill_round_rect(row_x, y, row_w, row_h, row_radius, background, ST7789::BLACK);
-            ST7789::draw_string(row_x + 4, y + 5, item_name(item), foreground, background, DENGB16);
-            const char* value = item_value(item);
-            if (item_type(item) == ItemType::Detail) {
-                constexpr uint16_t icon_size = 18;
-                const uint16_t     icon_x    = row_x + row_w - icon_size - 2;
-                const uint16_t     icon_y    = y + 2;
-                ST7789::draw_round_rect(icon_x, icon_y, icon_size, icon_size, icon_size / 2, 1, foreground, background);
-                ST7789::draw_string(icon_x + 7, icon_y + 2, "i", foreground, background, DENGB16);
-            } else if (value[0] != '\0') {
-                ST7789::draw_string(row_x + 70, y + 5, value, foreground, background, DENGB16);
+    // Draw the original settings sliders without adding a bitmap resource.
+    constexpr uint16_t knob_y[] = {52, 72, 59};
+    for (uint8_t i = 0; i < 3; ++i) {
+        ST7789::fill_round_rect(10 + i * 14, 43, 3, 47, 1, UI::CYAN, ST7789::BLACK);
+        ST7789::fill_round_rect(6 + i * 14, knob_y[i], 11, 8, 3, UI::CYAN, ST7789::BLACK);
+    }
+    for (uint8_t row = 0; row < VISIBLE_ROWS; ++row) {
+        const uint8_t item = (selected_ + ITEM_COUNT + row - 1) % ITEM_COUNT;
+        const uint16_t y = 8 + row * 40;
+        const bool selected = row == 1 && mode_ != Mode::View;
+        const auto background = selected ? UI::YELLOW : UI::PANEL;
+        const auto foreground = selected ? ST7789::BLACK : ST7789::WHITE;
+        ST7789::fill_round_rect(60, y, 174, 33, 5, background, ST7789::BLACK);
+        const char* value = item_value(item);
+        const bool detail = item_type(item) == ItemType::Detail;
+        const uint16_t value_w = UI::text_width(value, DENGB16);
+        const uint16_t name_w = detail ? 132 : 158 - value_w - (value_w ? 6 : 0);
+        const char* name = item_name(item);
+        if (UI::text_width(name, DENGB16) > name_w) {
+            switch (item) {
+            case WebBoot: name = "Web server"; break;
+            case BlackboxSnapshot: name = "Snapshot"; break;
+            case EspNowPair: name = "Pair devices"; break;
+            case EspNowInfo: name = "ESP-NOW info"; break;
+            case CanBaudrate: name = "CAN rate"; break;
+            case CanTerm: name = "Termination"; break;
+            case FirmwareInfo: name = "Firmware info"; break;
+            case FirmwareUpdate: name = "Update"; break;
+            case BlackboxInfo: name = "Blackbox info"; break;
+            default: break;
             }
         }
-    };
-
-    draw_menu_rows();
-    if (mode_ == Mode::Dialog) {
-        draw_dialog_overlay();
+        UI::text(68, y, name_w, 33, name, foreground, background);
+        if (detail) {
+            ST7789::draw_round_rect(208, y + 7, 18, 18, 9, 1, foreground, background);
+            UI::text(209, y + 7, 16, 18, "i", foreground, background, DENGB16, UI::Align::Center);
+        } else {
+            UI::text(226 - value_w, y, value_w, 33, value, foreground, background, DENGB16, UI::Align::Right);
+        }
     }
+    if (mode_ == Mode::Dialog)
+        draw_dialog_overlay();
 }
 
 /** @brief 从 NVS 加载设置页使用的显示配置。 */
@@ -232,31 +225,31 @@ void SettingsPage::load_config() {
 const char* SettingsPage::item_name(uint8_t item) const {
     switch (item) {
     case Rotate180:
-        return "Rotate";
+        return "Rotation";
     case Backlight:
-        return "Bright";
+        return "Brightness";
     case WebBoot:
-        return "Web";
+        return "Web server at boot";
     case ProtectBypass:
-        return "Protect";
+        return "Protection";
     case BlackboxSnapshot:
-        return "BBsnap";
+        return "Blackbox snapshot";
     case EspNowPair:
-        return "NOWpair";
+        return "ESP-NOW pairing";
     case EspNowInfo:
-        return "NOWinfo";
+        return "ESP-NOW information";
     case CanBaudrate:
-        return "CANrate";
+        return "CAN baud rate";
     case CanTerm:
-        return "CANRs";
+        return "CAN termination";
     case FirmwareInfo:
-        return "Firmware";
+        return "Firmware information";
     case FirmwareUpdate:
-        return "Update";
+        return "Firmware update";
     case BlackboxInfo:
-        return "Blackbox";
+        return "Blackbox information";
     case CalibrationInfo:
-        return "Calib";
+        return "Calibration";
     default:
         return "";
     }
@@ -297,7 +290,7 @@ const char* SettingsPage::item_value(uint8_t item) {
         }
     }
     case EspNowPair:
-        return EspNowLink::is_pairing() ? "WAIT" : "";
+        return EspNowLink::is_pairing() ? "Pairing" : "";
     case EspNowInfo:
         snprintf(value_buf_, sizeof(value_buf_), "%" PRIu32 "/3",
                  static_cast<uint32_t>(EspNowLink::get_saved_peer_count()));
@@ -305,13 +298,13 @@ const char* SettingsPage::item_value(uint8_t item) {
     case CanBaudrate:
         switch (CanCallback::CAN_BAUDRATE.read()) {
         case 1_Mbps:
-            return "1M";
+            return "1 Mbps";
         case 500_Kbps:
-            return "500K";
+            return "500 kbps";
         case 250_Kbps:
-            return "250K";
+            return "250 kbps";
         case 125_Kbps:
-            return "125K";
+            return "125 kbps";
         default:
             return "Other";
         }
@@ -322,12 +315,12 @@ const char* SettingsPage::item_value(uint8_t item) {
     case FirmwareUpdate: {
         const OtaService::State state = OtaService::get_status().state;
         if (state == OtaService::State::UPDATE_AVAILABLE)
-            return "NEW";
+            return "Available";
         if (state == OtaService::State::CHECKING || state == OtaService::State::DOWNLOADING ||
             state == OtaService::State::VERIFYING)
-            return "BUSY";
+            return "Busy";
         if (state == OtaService::State::FAILED)
-            return "ERR";
+            return "Error";
         return "";
     }
     case BlackboxInfo:
@@ -416,7 +409,7 @@ void SettingsPage::build_dialog_content() {
         snprintf(detail_lines_[1], sizeof(detail_lines_[1]), "Paired %" PRIu32 "/3",
                  static_cast<uint32_t>(EspNowLink::get_saved_peer_count()));
         snprintf(detail_lines_[2], sizeof(detail_lines_[2]), "No time limit");
-        snprintf(detail_lines_[3], sizeof(detail_lines_[3]), "Success auto exits");
+        snprintf(detail_lines_[3], sizeof(detail_lines_[3]), "Exit after success");
     } else if (item == EspNowInfo) {
         const size_t count = EspNowLink::get_saved_peer_count();
         snprintf(detail_lines_[0], sizeof(detail_lines_[0]), "Paired %" PRIu32 "/3", static_cast<uint32_t>(count));
@@ -445,7 +438,7 @@ void SettingsPage::build_dialog_content() {
             snprintf(detail_lines_[0], sizeof(detail_lines_[0]), "Upgrade to %.15s", ota.latest_version);
             snprintf(detail_lines_[1], sizeof(detail_lines_[1]), "Hold MAIN confirm");
             snprintf(detail_lines_[2], sizeof(detail_lines_[2]), "SIDE cancel");
-            snprintf(detail_lines_[3], sizeof(detail_lines_[3]), "Auto reboot");
+            snprintf(detail_lines_[3], sizeof(detail_lines_[3]), "Automatic restart");
         } else {
             snprintf(detail_lines_[0], sizeof(detail_lines_[0]), "State %s", OtaService::state_to_string(ota.state));
             if (ota.state == OtaService::State::UPDATE_AVAILABLE) {
@@ -507,16 +500,13 @@ void SettingsPage::build_dialog_content() {
 /** @brief 绘制设置项弹窗。 */
 void SettingsPage::draw_dialog_overlay() {
     build_dialog_content();
-    const ST7789::color_t panel = ST7789::BLACK;
-    const ST7789::color_t muted = ST7789::color_t(0xB5B5B5);
-
-    ST7789::fill_round_rect(8, 2, 144, 76, 6, panel, ST7789::BLACK);
-    ST7789::draw_round_rect(8, 2, 144, 76, 6, 1, ST7789::YELLOW, ST7789::BLACK);
-    ST7789::draw_string(14, 5, item_name(selected_), ST7789::YELLOW, panel, DENGB12);
-    ST7789::draw_string(14, 19, detail_lines_[0], ST7789::WHITE, panel, DENGB12);
-    ST7789::draw_string(14, 33, detail_lines_[1], ST7789::WHITE, panel, DENGB12);
-    ST7789::draw_string(14, 47, detail_lines_[2], muted, panel, DENGB12);
-    ST7789::draw_string(14, 61, detail_lines_[3], muted, panel, DENGB12);
+    ST7789::fill_round_rect(8, 8, 224, 119, 6, ST7789::BLACK, ST7789::BLACK);
+    ST7789::draw_round_rect(8, 8, 224, 119, 6, 1, UI::YELLOW, ST7789::BLACK);
+    UI::text(16, 13, 208, 20, item_name(selected_), UI::YELLOW);
+    ST7789::fill_rect(16, 37, 208, 1, UI::GRID);
+    for (uint8_t i = 0; i < 4; ++i) {
+        UI::text(16, 42 + i * 20, 208, 18, detail_lines_[i], i < 2 ? ST7789::WHITE : UI::MUTED, ST7789::BLACK, DENGB16);
+    }
 }
 
 /** @brief 修改当前选中的设置项。 */

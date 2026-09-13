@@ -2,6 +2,9 @@
 
 UI 图形资源模块，以 `const uint16_t[]` RGB565 小端序数组形式存储界面元素图片，供 `st7789_driver` 的 `draw_image()` 直接调用。
 
+PRO V2适配版仅链接 `start_logo.h`；其余旧标签、开关、圆点和设置图标已由
+`screen/widgets/ui_chrome`及页面中的基础图元代替。旧头文件保留供历史参考。
+
 ## 资源列表
 
 | 文件 | 尺寸 | 说明 |
@@ -16,7 +19,7 @@ UI 图形资源模块，以 `const uint16_t[]` RGB565 小端序数组形式存�
 | `meter_w_logo.h` | 12×10 | 电量页实时功率图标 |
 | `meter_circle_green.h` | 10×10 | 电量页输出开启图标 |
 | `meter_circle_red.h` | 10×10 | 电量页输出关闭图标 |
-| `start_logo.h` | 156×77 | 开机画面，居中显示在 160×80 屏幕上 |
+| `start_logo.h` | 156×77 | 开机画面，原尺寸居中显示在240×135屏幕上 |
 
 ## 资源流转
 
