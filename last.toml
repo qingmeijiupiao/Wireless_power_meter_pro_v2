@@ -1,0 +1,11 @@
+esp_toml_version = 1.0
+version = "0.2.0"
+published_at = "2026-09-19T08:00:45Z"
+
+[firmware]
+app = "Wireless_power_meter_pro_v2_app_v0.2.0.bin"
+app_size = 1305792
+app_url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@db6d5bbed7055ec5693c206048c6e0af4a92de7f/firmware/v0.2.0/Wireless_power_meter_pro_v2_app_v0.2.0.bin"
+merged = "Wireless_power_meter_pro_v2_merged_v0.2.0.bin"
+merged_size = 1436864
+merged_url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@db6d5bbed7055ec5693c206048c6e0af4a92de7f/firmware/v0.2.0/Wireless_power_meter_pro_v2_merged_v0.2.0.bin"
