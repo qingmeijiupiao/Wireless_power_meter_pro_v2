@@ -66,11 +66,13 @@ esp_err_t set_start_logo_duration_ms(uint32_t duration_ms) {
 esp_err_t init_buttons() {
     main_button.bind_event(ButtonEvent::SHORT_PRESS, []() {
         if (!post_button_event(ButtonId::Main, ButtonEvent::SHORT_PRESS)) {
-            PowerOutput::toggle(TAG);
+            PowerOutput::request(PowerOutput::OutputOperation::TOGGLE, TAG);
         }
     });
     main_button.bind_event(ButtonEvent::LONG_PRESS,
                            []() { post_button_event(ButtonId::Main, ButtonEvent::LONG_PRESS); });
+    main_button.bind_event(ButtonEvent::DOUBLE_CLICK,
+                           []() { post_button_event(ButtonId::Main, ButtonEvent::DOUBLE_CLICK); });
     side_button.bind_event(ButtonEvent::SHORT_PRESS,
                            []() { post_button_event(ButtonId::Side, ButtonEvent::SHORT_PRESS); });
     side_button.bind_event(ButtonEvent::DOUBLE_CLICK,
@@ -81,6 +83,10 @@ esp_err_t init_buttons() {
                            []() { post_button_event(ButtonId::Side, ButtonEvent::SUPER_LONG_PRESS); });
     previous_button.bind_event(ButtonEvent::SHORT_PRESS,
                                []() { post_button_event(ButtonId::Previous, ButtonEvent::SHORT_PRESS); });
+    previous_button.bind_event(ButtonEvent::DOUBLE_CLICK,
+                               []() { post_button_event(ButtonId::Previous, ButtonEvent::DOUBLE_CLICK); });
+    previous_button.bind_event(ButtonEvent::LONG_PRESS,
+                               []() { post_button_event(ButtonId::Previous, ButtonEvent::LONG_PRESS); });
 
     esp_err_t ret = main_button.setup(get_hardware_config().MAIN_BUTTON, true);
     if (ret != ESP_OK) {

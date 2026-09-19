@@ -14,13 +14,13 @@
 
 namespace PowerOutput {
 
-constexpr uint32_t OUTPUT_ON_COOLDOWN_MS  = 500; /**< 开启冷却时间，OFF->ON 操作后需等待，单位毫秒 */
-constexpr uint32_t OUTPUT_OFF_COOLDOWN_MS = 0;   /**< 关闭冷却时间，ON->OFF 操作后需等待，单位毫秒 */
+constexpr uint32_t OUTPUT_ON_COOLDOWN_MS  = 500; /**< 开启冷却时间，OFF 操作后再次 ON 前需等待，单位毫秒 */
+constexpr uint32_t OUTPUT_OFF_COOLDOWN_MS = 0;   /**< 关闭冷却时间，ON 操作后再次 OFF 前需等待，单位毫秒 */
 
 /**
- * @brief 冷却策略，上次操作后的一段时间内阻止同方向操作
- * @note  OFF->ON 操作后需等待 on_cooldown_ms 才能 ON，
- *        ON->OFF 操作后需等待 off_cooldown_ms 才能 OFF
+ * @brief 冷却策略，关闭后限制再次开启、开启后限制再次关闭
+ * @note  OFF 操作后需等待 on_cooldown_ms 才能 ON，
+ *        ON 操作后需等待 off_cooldown_ms 才能 OFF
  */
 class CooldownPolicy : public OutputPolicy {
   public:

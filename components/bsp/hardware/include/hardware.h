@@ -23,7 +23,7 @@ struct hardware_config {
     gpio_num_t TFT_RS;
     gpio_num_t TFT_CS;
     gpio_num_t TFT_BLK;
-    bool       TFT_BLK_ACTIVE_STATE; // 备光开启时引脚的电平状态
+    bool       TFT_BLK_ACTIVE_STATE; // 背光开启时引脚的电平状态
 
     // 温度传感器通道
     adc_channel_t temperature_channel;
@@ -34,10 +34,10 @@ struct hardware_config {
     gpio_num_t CAN_RX;
     gpio_num_t CAN_RESISTOR_ENABLE; // CAN电阻使能引脚
 
-    // ina 226 引脚配置
-    gpio_num_t INAA226_SDA;
-    gpio_num_t INAA226_SCL;
-    gpio_num_t INAA226_ALERT; // 中断引脚
+    // INA228 引脚配置
+    gpio_num_t INA228_SDA;
+    gpio_num_t INA228_SCL;
+    gpio_num_t INA228_ALERT; // GPIO4已接外部上拉；当前未启用转换就绪通知
 
     // 输出控制引脚配置
     gpio_num_t OUTPUT_CTRL; // 输出控制引脚
@@ -51,7 +51,7 @@ struct hardware_config {
 
 /**
  * @description: 初始化硬件配置
- * @note: 该函数必须是第一个被调用的函数，用于初始化硬件版本配置
+ * @note: 在依赖板级引脚配置的驱动和业务模块初始化前调用
  * @return {*}
  */
 esp_err_t hardware_config_init();

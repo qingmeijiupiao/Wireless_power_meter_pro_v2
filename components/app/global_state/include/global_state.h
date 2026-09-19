@@ -43,8 +43,8 @@ struct GlobalState {
     float            meter_mwh            = 0.0F;
     int16_t          board_temperature    = 0; /**< 板载温度，单位 0.01 摄氏度。 */
     int16_t          chip_temperature     = 0; /**< 芯片温度，单位 0.01 摄氏度。 */
-    int16_t          current_register_raw = 0;
-    uint16_t         voltage_register_raw = 0;
+    int16_t          current_register_raw = 0; // 兼容校准域，2.5uV/单位
+    uint16_t         voltage_register_raw = 0; // 兼容诊断域，1.25mV/单位
 };
 static_assert(sizeof(GlobalState) == 28, "GlobalState size mismatch");
 

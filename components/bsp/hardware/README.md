@@ -6,19 +6,19 @@
 
 - **硬件版本识别**：通过指定 ADC 通道读取硬件版本分压值，换算为硬件版本号
 - **集中引脚表**：按硬件版本维护 TFT、CAN、INA228、温度传感器、输出控制和按键引脚
-- **默认兜底配置**：未知版本会打印警告并回退到 `version_1`
+- **默认兜底配置**：未知版本会打印警告并回退到 `version_0`
 - **启动前置依赖**：`hardware_config_init()` 必须在依赖引脚配置的模块初始化前调用
 
 ## 当前版本配置
 
-当前源码内置 `version_1` 配置，覆盖以下硬件资源：
+当前源码内置 `version_0` 配置，覆盖以下硬件资源：
 
 | 类型 | 配置项 |
 |------|--------|
 | TFT | `TFT_SCL`、`TFT_SDA`、`TFT_RST`、`TFT_RS`、`TFT_CS`、`TFT_BLK`、`TFT_BLK_ACTIVE_STATE` |
 | ADC | `temperature_channel`、`short_detect_channel` |
 | CAN | `CAN_TX`、`CAN_RX`、`CAN_RESISTOR_ENABLE` |
-| INA228 | `INAA226_SDA`、`INAA226_SCL`、`INAA226_ALERT` |
+| INA228 | `INA228_SDA`、`INA228_SCL`、`INA228_ALERT` |
 | 输出 | `OUTPUT_CTRL`、`SHORT_TEST_ENABLE` |
 | 按键 | `MAIN_BUTTON`、`SIDE_BUTTON`、`PREVIOUS_BUTTON` |
 
@@ -27,15 +27,32 @@
 ```mermaid
 flowchart LR
     Init["hardware_config_init()"] --> ADC["hardware_adc.init()"]
-    ADC --> Sample["读取 10 次 ADC raw"]
+    ADC --> Sample["读取 10 次校准电压 mV"]
     Sample --> Filter["剔除偏离均值的异常值"]
-    Filter --> Calc["按 330 raw/档换算版本号"]
+    Filter --> Calc["按 330mV/档换算版本号"]
     Calc --> Store["保存 hardware_version"]
 ```
 
-识别 ADC 通道由 `hardware_adc_channel` 定义。当前换算方式为 `(adc_value + 165) / 330 + 1`。
+识别 ADC 通道由 `hardware_adc_channel` 定义。当前换算方式为 `(voltage_mV + 165) / 330`，0mV对应版本0，330mV对应版本1。先平均10个有效校准电压，再按最近档位取整；偏离运行均值超过165mV的样本重试，累计超过5次异常则返回错误并保留未知版本255。当前手板为0mV，仅配置版本0。
+
+## 已确认手板参数
+
+- 板温器件仍为TMP235，连接ADC_CHANNEL_3。
+- 分流电阻默认2mΩ，对应当前兼容校准域的K=1250。
+- INA228 ALERT连接GPIO4，外部已上拉；当前采样仍轮询DIAG_ALRT，未启用GPIO就绪通知。
+- LP I2C在ulp_loader中固定使用GPIO6/7；引脚字段命名已统一为INA228。
 
 ## 集成与使用
+
+### ALERT 数据就绪能力（尚未启用）
+
+INA228 支持将转换完成状态输出到 ALERT：设置 `DIAG_ALRT`（0x0B）的 `CNVR`（bit14），默认 `APOL=0` 为低有效开漏输出，与当前外部上拉连接相符。所有启用的转换和平均完成后，`CNVRF`（bit1）置位。若后续采用锁存通知，可设置 `ALATCH`（bit15），读状态寄存器后解除锁存。
+
+ALERT 也可能由其他告警触发，处理时仍需检查状态。当前 LP 轮询会读取 `DIAG_ALRT` 并清除就绪标志；后续改用 GPIO4 时应由采样侧统一消费该状态，避免 HP 与 LP 竞争读取。当前固件没有启用这项 GPIO 通知功能。
+
+依据：[TI INA228 数据手册](https://www.ti.com/lit/ds/symlink/ina228.pdf)，第7.3.4、7.3.7节及表7-16。
+
+### 初始化示例
 
 ```cpp
 #include "hardware.h"

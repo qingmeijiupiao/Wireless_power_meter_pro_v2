@@ -1,6 +1,6 @@
 # power_output
 
-功率输出控制模块，基于策略链（Policy Chain）架构管理输出开关操作。每次操作（开/关/切换）依次经过所有已注册策略的检查，全部通过后才执行，支持灵活扩展新的开关约束条件。
+功率输出控制模块，以统一事务管理所有 OFF→ON：保护与冷却检查 → 开启前短路检测（保护旁路时跳过）→ 最终复核 → GPIO 提交。关闭立即执行并取消待开启，不受开启策略阻断。
 
 ## 模块特点
 
@@ -8,7 +8,7 @@
 - **可扩展**：继承 `OutputPolicy` 实现自定义策略，调用 `add_policy()` 即可加入检查链
 - **保护联动**：内置 `ProtectPolicy`，保护状态激活时自动阻止开启输出，保护触发时强制关闭
 - **冷却延时**：内置 `CooldownPolicy`，ON/OFF 冷却时间独立设置，防止快速反复切换
-- **零堆分配**：策略链和回调列表使用固定大小静态数组，无动态内存分配
+- **固定请求容量**：只保留一个检测/开启事务，不积压开启请求；任务和信号量初始化分配，`std::function` 捕获可能分配内存
 - **状态回调**：输出状态变更时通知所有注册的回调函数
 
 ## 架构与原理
@@ -19,10 +19,13 @@ flowchart LR
     B --> C{"ProtectPolicy"}
     C -->|OK| D{"CooldownPolicy"}
     C -->|FAIL| E["返回拒绝原因"]
-    D -->|OK| F["apply_state()"]
+    D -->|OK| T["工作任务：短路检测 / 旁路清理"]
+    T --> R["锁内复核取消、保护、旁路与期限"]
+    R -->|通过| F["apply_state()"]
+    R -->|拒绝| E
     D -->|FAIL| E
-    F --> G["notify_policies_applied()"]
-    G --> H["notify_change()"]
+    F --> G["notify_change()（apply_state 内）"]
+    G --> H["notify_policies_applied()"]
 ```
 
 ```mermaid
@@ -40,10 +43,11 @@ sequenceDiagram
         Policy-->>PO: FAIL_PROTECT_ACTIVE / FAIL_COOLDOWN_ACTIVE
         PO-->>Caller: OutputResult
     else 全部通过
+        PO->>PO: 工作任务检测、清理测试激励并最终复核
         PO->>GPIO: set(new_state)
         GPIO->>GS: on_change 更新 flags.output_enabled
-        PO->>Policy: on_state_applied(op, new_state)
         PO->>CB: notify_change(new_state)
+        PO->>Policy: on_state_applied(op, new_state)
         PO-->>Caller: OK
     end
 ```
@@ -112,6 +116,16 @@ power_output/
 ├── CMakeLists.txt
 └── README.md
 ```
+
+## 开启事务与异步接口
+
+`request(op, source, completion)` 用于按键、CAN、ESP-NOW；返回 `PENDING` 仅表示已接收。完成回调恰好执行一次，可能同步调用或在输出工作任务中调用，必须快速返回。回调参数是该请求完成时的输出状态。Web/Shell 使用同步 `on/off/toggle`。所有 source 字符串必须具有静态生命周期。
+
+工作任务 `output_check` 的栈为 4096 字节、优先级 4，空闲时等待通知，不轮询检测。主输出保持关闭，检测最长 500ms、10ms 间隔连续三次电压达标即通过，低值清零连续计数；激励清理成功后才允许开输出。采样间检查取消状态。重复 ON 幂等；检测中重复 ON 返回忙，OFF 或切换请求取消待开启。手动检测也占用同一事务，但不会自动开启。检测错误保持关闭；保护旁路直接跳过采样，冷却仍生效。INA228 是否可用不影响独立短路检测。
+
+输出事务锁覆盖请求状态、策略和 GPIO；检测延时在锁外。`ProtectOutputGuard` 把保护状态/旁路写入与最终检查、GPIO 提交串行化。锁顺序为输出事务 → 保护门控 → GlobalState。策略方法不得重入服务；用户状态/完成回调在锁外执行。关闭始终可用。
+
+`set_event_notifier()` 可在初始化前注册单个轻量输出变化/失败唤醒回调，在事务锁外执行；接收方只唤醒任务，不在回调绘制。`take_failure_notice()` 提供单槽失败通知，屏幕延迟启动也可消费；同类连续失败合并。日志记录来源、判定、电压、阈值和错误；短路状态不扩展现有四通道持久化/通信位域。
 
 ## 集成与使用
 
@@ -185,19 +199,19 @@ PowerOutput::add_policy(&max_on_policy);
 
 ### `esp_err_t deinit()`
 
-反初始化模块，关闭输出并清理回调与策略链。
+关闭输出并取消待开启。工作任务、锁和回调保留，以便完成脉冲清理和重新初始化；检测未收尾时拒绝重新初始化。
 
 ### `OutputResult on()`
 
-开启输出。经过策略链检查，全部通过后执行。
+同步开启，最多等待 750ms。超时取消尚未提交的开启，工作任务仍负责清理，不能在超时后延迟开启。
 
 ### `OutputResult off()`
 
-关闭输出。经过策略链检查，全部通过后执行。
+立即关闭，并取消尚未完成的检测/开启；不等待 ADC 检测结束。
 
 ### `OutputResult toggle()`
 
-切换输出状态。根据当前状态决定执行 ON 或 OFF 操作，经策略链检查后执行。
+切换输出状态。根据当前状态决定执行 ON 或 OFF 操作，关闭分支立即执行；开启分支进入检测事务。
 
 ### `bool get_state()`
 
@@ -218,7 +232,14 @@ PowerOutput::add_policy(&max_on_policy);
 | `OK` | 操作成功 |
 | `FAIL_NOT_INIT` | 模块未初始化 |
 | `FAIL_PROTECT_ACTIVE` | 保护阻断生效，阻止开启 |
-| `FAIL_COOLDOWN_ACTIVE` | 冷却时间未到，阻止操作 |
+| `FAIL_COOLDOWN_ACTIVE` | 冷却时间未到，阻止开启 |
+| `FAIL_SHORT_CIRCUIT` | 检测到短路，保持关闭 |
+| `FAIL_SHORT_DETECT` | 检测或测试激励清理失败 |
+| `FAIL_BUSY` | 已有检测/开启事务 |
+| `FAIL_CANCELLED` | 关闭、保护或反初始化取消 |
+| `FAIL_TIMEOUT` | 请求期限/同步等待超时 |
+| `FAIL_GPIO` | 主输出 GPIO 操作失败 |
+| `PENDING` | 异步请求已接受，尚未完成 |
 
 ## 环境与依赖
 
@@ -234,7 +255,7 @@ PowerOutput::add_policy(&max_on_policy);
 
 - [`global_state`](../global_state/README.md)（`app`）
 - [`protect`](../protect/README.md)（`app`）
-- [`cpp_gpio_driver`](../../bsp/cpp_gpio_driver/README.md)（`bsp`）
+- [`short_circuit_detect`](../../middleware/short_circuit_detect/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 - [`diagnostic_log`](../../common/diagnostic_log/README.md)（`common`）
 

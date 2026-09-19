@@ -258,7 +258,11 @@ int main() {
  main.render(RenderMode::Full);
  for(int y=29;y<102;++y)for(int x=174;x<234;++x)assert(double_buffer.data[0][y*WIDTH+x]==0);
  for(auto p:double_buffer.data[1]) assert(p==0xA55A);
- puts("PASS: clipping, ASCII fallback, font subset, bounded labels, protection states and all settings labels");
+ main.render(RenderMode::Full);UI::short_circuit_dialog(true,5,200);snapshot("12-short-circuit");
+ settings.render(RenderMode::Full);UI::short_circuit_dialog(false,0,200);snapshot("13-short-check-failed");
+ assert(UI::text_width("OUTPUT BLOCKED",DENGB16)<=208);
+ assert(UI::text_width("Any key: dismiss",DENGB16)<=208);
+ puts("PASS: clipping, ASCII fallback, font subset, bounded labels, protection states, settings and short-circuit dialogs");
 }
 '''
     (out / 'display_check.cpp').write_text(cpp, encoding='utf-8')

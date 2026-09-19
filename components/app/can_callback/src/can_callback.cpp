@@ -124,14 +124,13 @@ esp_err_t init() {
      * @action 设置输出 回调，根据输出状态设置输出引脚
      */
     can_bus->add_can_receive_callback_func(CAN_ID + CALLBACK_SET_OUTPUT, [](HXC_CAN_message_t* msg) {
-        PowerOutput::OutputResult result;
-        if (msg->data[0] == 0x01) {
-            result = PowerOutput::on(TAG);
-        } else {
-            result = PowerOutput::off(TAG);
-        }
-        DEVICE_EVENT_I(TAG, "can: set_output target=%u result=%u", msg->data[0] == 0x01 ? 1U : 0U,
-                       static_cast<uint32_t>(result));
+        if (msg->data_length_code < 1) return;
+        const bool target = msg->data[0] == 0x01;
+        PowerOutput::request(target ? PowerOutput::OutputOperation::ON : PowerOutput::OutputOperation::OFF, TAG,
+            [target](PowerOutput::OutputResult result, bool state) {
+                DEVICE_EVENT_I(TAG, "can: set_output target=%u result=%s state=%u", target ? 1U : 0U,
+                               PowerOutput::result_to_string(result), state ? 1U : 0U);
+            });
     });
 
     /**

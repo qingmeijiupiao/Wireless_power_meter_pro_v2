@@ -27,6 +27,8 @@ espnow_service/
 二次分发任务。每个接收回调内部直接完成校验、解码和业务处理，不再注册第二层产品
 处理回调。回调由 `espnow_link` 消息分发任务调用，因此业务处理必须快速返回。
 
+开关请求复制 peer、request_id、action 后提交到 `PowerOutput`。开启前短路检测由输出工作任务执行，完成后才发送原格式的 7 字节响应；不保存接收 payload 指针。短路、忙和取消映射为 `REJECTED`，检测/硬件错误或超时映射为 `INTERNAL_ERROR`。链路 ACK 仍不代表输出成功。
+
 ## 消息
 
 | ID | 语义 |

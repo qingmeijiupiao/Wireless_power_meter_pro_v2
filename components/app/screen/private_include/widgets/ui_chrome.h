@@ -43,6 +43,8 @@ void number(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char *value, S
 void badge(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char *value, ST7789::color_t fg, ST7789::color_t bg,
            const Font_t &font = DENGB16);
 void output_dot(bool enabled);
+/** 全局开启前保护提示；由 screen_task 在页面绘制后调用。 */
+void short_circuit_dialog(bool is_short, uint16_t voltage_mV, uint16_t threshold_mV);
 } // namespace UI
 
 } // namespace SCREEN

@@ -2,7 +2,7 @@
 
 ESP32-C6 本地屏幕应用组件。组件负责 ST7789V 240×135 显示、页面生命周期、按键事件分发、页面刷新和显示配置持久化。
 
-240×135 第一版 UI 已按 Figma 适配稿移植：三行大数字、双行累计电量、扩大曲线区、
+240×135 第一版 UI 已按 Figma 适配稿移植：主页两行大读数与底部状态栏、双行累计电量、扩大曲线区、
 网络信息和三行设置菜单。布局、资源预算、主机预览与验证方法见 [PRO V2 UI 适配说明](DOC/pro_v2_ui.md)。
 
 ## 架构
@@ -69,7 +69,7 @@ screen/
 
 | 页面 | 刷新周期 | 详细设计 |
 |---|---:|---|
-| Dashboard | 约 33ms | [主页](DOC/dashboard.md) |
+| Dashboard | 67ms（约 15 FPS） | [主页](DOC/dashboard.md) |
 | Battery | 250ms | [计量页](DOC/battery.md) |
 | Curve | 200ms | [曲线页](DOC/curve.md) |
 | Wireless | 500ms | [无线页](DOC/wireless.md) |
@@ -84,9 +84,12 @@ screen/
 | 侧键 | 短按 | 切换到注册表中的下一页 |
 | 侧键 | 长按 | 当前页面支持编辑时进入编辑状态 |
 | 侧键 | 超长按 | 当前保留，仅记录日志 |
-| 主键 | 短按 | 通过 `PowerOutput::toggle()` 切换输出 |
+| 主键 | 短按 | 通过 `PowerOutput::request(TOGGLE, ...)` 切换输出 |
+| 上一页键（BOOT） | 短按 | 当前页未消费事件时切换到上一页 |
 
-页面的 `handle_button()` 拥有优先处理权。页面返回 `true` 后不再执行默认行为，并在
+全局短路保护弹窗具有最高按键优先级：显示 `SHORT CIRCUIT` 或 `CHECK FAILED`，主键或任一翻页键短按只关闭提示（双击、长按也可关闭）。所有控制来源失败都可在当前页面弹出，显示由屏幕任务完成。弹窗期间的按键不会传给底层页面，关闭提示使用独立原子标志，且优先于同轮到达的失败通知，队列满时也不回退为开启。
+
+没有全局弹窗时，页面的 `handle_button()` 拥有优先处理权。页面返回 `true` 后不再执行默认行为，并在
 下一轮强制完整刷新。详细的页面专属按键见各页面文档。
 
 ## 使用
@@ -96,14 +99,14 @@ xTaskCreate(SCREEN::screen_task, "screen_task", 3584, nullptr, 4, nullptr);
 ESP_ERROR_CHECK(SCREEN::init_buttons());
 ```
 
-调用前必须完成 `hardware_config_init()`。Button 回调不得直接修改 UI，应通过 `post_button_event()` 投递给屏幕任务。主按键投递失败时保留直接调用 `PowerOutput::toggle()` 的安全回退。
+调用前必须完成 `hardware_config_init()`。Button 回调不得直接修改 UI，应通过 `post_button_event()` 投递给屏幕任务。主按键投递失败时保留直接调用 `PowerOutput::request(TOGGLE, ...)` 的安全回退。
 
 ### 公开 API
 
 | API | 说明 |
 |---|---|
 | `screen_task(void*)` | 初始化 LCD 并运行 UI 主循环 |
-| `init_buttons()` | 绑定主键、侧键事件并初始化 GPIO |
+| `init_buttons()` | 绑定主键、侧键和上一页键事件并初始化 GPIO |
 | `post_button_event()` | 从其他任务无阻塞投递 UI 按键事件 |
 | `get_start_logo_duration_ms()` | 读取开机画面时长，`0` 表示关闭 |
 | `set_start_logo_duration_ms()` | 限幅并持久化开机画面时长 |
@@ -124,7 +127,7 @@ ESP_ERROR_CHECK(SCREEN::init_buttons());
 - 通用绘制能力只有在两个以上页面复用时才下沉到 `widgets/`。
 - 页面新增 NVS 数据时必须包含版本或合法性校验，并更新本 README 的 Key 表。
 
-页面使用 160×80 固定逻辑坐标；旋转由显示驱动处理。业务操作必须调用现有服务接口，禁止页面直接操作输出 GPIO。
+页面使用 240×135 固定逻辑坐标；旋转由显示驱动处理。业务操作必须调用现有服务接口，禁止页面直接操作输出 GPIO。
 
 ## 持久化键
 
@@ -159,3 +162,5 @@ ESP_ERROR_CHECK(SCREEN::init_buttons());
 - [Curve 历史曲线页](DOC/curve.md)
 - [Wireless 无线状态与配网页](DOC/wireless.md)
 - [Settings 设置、详情与动作页](DOC/settings.md)
+
+刷新由 UIManager 按页面截止时间和事件通知统一调度，不再 5ms 轮询或固定帧后休眠。`core/ui_schedule.h` 定义 75% 工作占比预算及慢帧跳帧规则，防止按键和扫描定时器饥饿。静态保护弹窗冻结背景，仅内容变化时重绘；关闭后恢复页面周期，期间曲线历史仍按 500ms 截止时间采样。详见架构设计。

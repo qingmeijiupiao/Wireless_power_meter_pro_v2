@@ -10,7 +10,10 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/task.h"
 #include "core/page.h"
+#include "power_output.h"
+#include <atomic>
 
 namespace SCREEN {
 
@@ -61,6 +64,10 @@ class UIManager {
      */
     void loop_once();
 
+    /** 唤醒等待中的屏幕任务；通知可合并，实际数据仍由队列/服务持有。 */
+    void wake();
+    void request_redraw();
+
   private:
     /** @brief `UIManager` 接口。 */
     UIManager() = default;
@@ -110,11 +117,19 @@ class UIManager {
     /** 当前页面在 pages_ 中的索引 */
     uint8_t current_page_ = 0;
 
-    /** 上一次渲染的系统时间，用于页面刷新周期控制 */
-    uint32_t last_render_ms_ = 0;
+    TickType_t next_frame_tick_ = 0;
+    TickType_t next_history_tick_ = 0;
+    TickType_t resume_work_tick_ = 0;
+    std::atomic<TaskHandle_t> screen_task_{nullptr};
+    std::atomic<bool> external_redraw_requested_{false};
+    bool dialog_dirty_ = false;
+    bool dialog_needs_background_ = false;
 
-    /** 置位后忽略页面刷新周期，下一轮立即完整刷新 */
+    /** 请求重绘可提前于页面周期，但不能绕过 CPU 预算。 */
     bool full_redraw_ = true;
+    PowerOutput::FailureNotice protection_notice_{};
+    std::atomic<bool> protection_dialog_active_{false};
+    std::atomic<bool> dismiss_protection_requested_{false};
 };
 
 } // namespace SCREEN

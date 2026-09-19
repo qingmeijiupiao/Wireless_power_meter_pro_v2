@@ -25,8 +25,8 @@ struct LP_Core_Snapshot {
     uint32_t       log_data               = 0;
     uint32_t       voltage_uv             = 0;
     int32_t        current_uA             = 0;
-    int16_t        shunt_register_raw     = 0;
-    uint16_t       voltage_register_raw   = 0;
+    int16_t        shunt_register_raw     = 0; // 兼容校准域，2.5uV/单位
+    uint16_t       voltage_register_raw   = 0; // 兼容诊断域，1.25mV/单位
     uint16_t       ina228_manufacturer_id = 0;
     int64_t        meter_uah              = 0;
     int64_t        meter_uwh              = 0;
@@ -35,7 +35,7 @@ struct LP_Core_Snapshot {
 /**
  * @brief 原子读取一份 LP Core 共享状态快照。
  * @param snapshot 接收快照的输出缓冲区。
- * @return true 读取成功；false 参数无效或共享锁获取失败。
+ * @return true 读取成功；false 参数无效或共享锁尚未初始化。
  */
 bool LP_Core_GetSnapshot(LP_Core_Snapshot* snapshot);
 

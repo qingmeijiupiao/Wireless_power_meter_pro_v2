@@ -1,16 +1,16 @@
 # Fonts
 
-PRO V2 新增 `DENGB28_NUM` 数字子集（27px字高）：仅保存 `0123456789.-+`，
-位图5,400字节。仍使用95项ASCII宽度表，缺失字符宽度为0、无位图数据。
+PRO V2主页及容量大数字使用 `DENGB44_NUM`，容量单位使用 `DENGB28_UNITS`。
+其他数字子集保留在资源目录中，实际引用见页面源码。子集仍使用95项ASCII宽度表，缺失字符宽度为0、无位图数据。
 UI大数字绘制会检查字形支持，不支持的字符串回退到完整小字号字库。
 生成命令和预览检查见 `components/app/screen/DOC/pro_v2_ui.md`。
 
-点阵字体资源模块，提供 DENGB 字体家族的多种字高变体（12/16/20/默认），以编译期常量数组形式存储字形灰度数据和宽度表，供 `st7789_driver` 渲染文本。
+点阵字体资源模块，提供 DENGB 字体家族的多种字高变体（完整ASCII字体及数字/单位子集），以编译期常量数组形式存储字形灰度数据和宽度表，供 `st7789_driver` 渲染文本。
 
 ## 模块特点
 
 - **统一基线变宽**：每个字符使用独立宽度表，但共享同一条排版基线，正确保留 `g` / `p` / `q` / `y` 等字母的下伸部分
-- **多字高预置**：DENGB12 / DENGB16 / DENGB20 / DENGB（15px）
+- **多字高预置**：完整ASCII字体 DENGB12/16/20；子集 DENGB28_NUM、DENGB28_UNITS、DENGB32_METER、DENGB36_NUM、DENGB44_NUM
 - **预览位图**：`Front_preview/` 目录含各字体的渲染预览 BMP
 
 ## 生成与渲染流程
@@ -69,8 +69,8 @@ python scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 ### 示例
 
 ```bash
-# 在项目根目录执行，输出到 Fonts/DENGB16/ 目录
-python scripts/generate_font.py Fonts/Front_preview/DENGB.TTF 16 DENGB16
+# 在项目根目录执行，输出到 DENGB16/ 目录
+python scripts/generate_font.py components/assets/Fonts/Front_preview/DENGB.TTF 16 DENGB16
 ```
 
 生成结果：

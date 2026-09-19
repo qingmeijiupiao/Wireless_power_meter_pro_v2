@@ -55,7 +55,7 @@ flowchart TD
 |---------|----------|----------|------|
 | `CAN_ID + 0x00` | 任意 | 调用 `send(msg)` 原样回传 | 与请求相同 |
 | `CAN_ID + 0x01` | 无要求 | 读取 `global_state` 和终端电阻状态 | `CALLBACK_GET_STATE_DATA_t` |
-| `CAN_ID + 0x02` | `data[0] == 0x01` 表示开启，其他值表示关闭 | 调用 `PowerOutput::on()` 或 `off()`，并输出持久化诊断事件 | 无 |
+| `CAN_ID + 0x02` | `data[0] == 0x01` 表示开启，其他值表示关闭 | 校验 DLC 后异步调用 `PowerOutput::request()`，完成时记录最终结果 | 无 |
 | `CAN_ID + 0x03` | `data[0] == 0x01` 表示开启，其他值表示关闭 | 调用 `CanResistor::set()`，并输出持久化诊断事件 | 无 |
 | `-1` | 任意 | 调试 Catch-All：打印所有收到的帧 | 无 |
 

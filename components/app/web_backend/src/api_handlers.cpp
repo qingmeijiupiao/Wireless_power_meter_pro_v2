@@ -71,18 +71,7 @@ const char* mode_to_str(WifiService::Mode mode) {
 
 /** @brief 将 PowerOutput 结果转换为 API reason 字符串。 */
 static const char* output_result_to_str(PowerOutput::OutputResult result) {
-    switch (result) {
-    case PowerOutput::OutputResult::OK:
-        return "ok";
-    case PowerOutput::OutputResult::FAIL_NOT_INIT:
-        return "not_initialized";
-    case PowerOutput::OutputResult::FAIL_PROTECT_ACTIVE:
-        return "protect_active";
-    case PowerOutput::OutputResult::FAIL_COOLDOWN_ACTIVE:
-        return "cooldown_active";
-    default:
-        return "unknown";
-    }
+    return PowerOutput::result_to_string(result);
 }
 
 /** @brief 将 IP_t 转换为点分十进制字符串。 */

@@ -65,7 +65,7 @@ const char *DashboardPage::title() const { return "Main"; }
 
 /** @brief 返回主页刷新周期。 */
 uint32_t DashboardPage::refresh_interval_ms() const {
-    return 1000 / 30;
+    return (1000 + 15 - 1) / 15; // 67ms，目标约 15 FPS
 }
 
 /**
@@ -129,7 +129,7 @@ void DashboardPage::draw_protect_tag(uint16_t x, uint16_t y, const char* text, P
     } else if (state == PROTECT_STATE_WARNING) {
         UI::badge(x, y, 60, 21, text, ST7789::BLACK, UI::YELLOW);
     }
-    // Normal states stay hidden, as in Lite. Figma's colored tags are examples.
+    // 正常状态隐藏标签，仅绘制实际告警和保护状态。
 }
 
 } // namespace SCREEN

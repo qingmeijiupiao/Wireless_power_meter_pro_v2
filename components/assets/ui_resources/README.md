@@ -30,7 +30,7 @@ flowchart LR
     Header --> CMake["ui_resources 组件"]
     CMake --> Screen["screen_task"]
     Screen --> Driver["ST7789::draw_image()"]
-    Driver --> LCD["160x80 TFT"]
+    Driver --> LCD["240x135 TFT"]
 ```
 
 ## 集成与使用
@@ -79,11 +79,11 @@ python scripts/image_converter.py -n ErrorRectangle assets/error_rect.png includ
 - `{NAME}_WIDTH` / `{NAME}_HEIGHT` 宏定义
 - `{name}_data[]` RGB565 小端序像素数组
 
-直接放入 `include/` 目录即可被组件自动包含。建议图片尺寸不超过 160×80（显示屏分辨率）。
+将头文件放入 `include/`，并在使用方显式包含、引用数组；仅放入目录不会自动链接资源。建议图片尺寸不超过 240×135（显示屏分辨率）。
 
 ## 环境与依赖
 
-- **使用方**：`screen` 通过 `st7789_driver::draw_image()` 绘制资源。
+- **使用方**：`screen` 通过 `ST7789::draw_image()` 绘制资源。
 
 <!-- dependency-links:start -->
 ## 依赖导航

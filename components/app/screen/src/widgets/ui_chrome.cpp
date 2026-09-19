@@ -22,6 +22,23 @@ void draw_edit_indicator() {
 }
 
 namespace UI {
+void short_circuit_dialog(bool is_short, uint16_t voltage_mV, uint16_t threshold_mV) {
+    ST7789::fill_round_rect(8, 8, 224, 119, 6, ST7789::BLACK, ST7789::BLACK);
+    ST7789::draw_round_rect(8, 8, 224, 119, 6, 1, VOLTAGE, ST7789::BLACK);
+    text(16, 14, 208, 20, is_short ? "SHORT CIRCUIT" : "CHECK FAILED", VOLTAGE,
+         ST7789::BLACK, DENGB20);
+    ST7789::fill_rect(16, 39, 208, 1, GRID);
+    text(16, 47, 208, 18, "OUTPUT BLOCKED", ST7789::WHITE);
+    char detail[40];
+    if (is_short) {
+        snprintf(detail, sizeof(detail), "%u mV / min %u", voltage_mV, threshold_mV);
+    } else {
+        snprintf(detail, sizeof(detail), "Check detector / wiring");
+    }
+    text(16, 70, 208, 18, detail, MUTED);
+    text(16, 101, 208, 18, "Any key: dismiss", YELLOW);
+}
+
 /**
  * @brief 计算 10 的非负整数次幂。
  * @param exponent 指数。

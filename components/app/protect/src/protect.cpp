@@ -8,6 +8,17 @@
 #include <bit>
 #include <cmath>
 #include <vector>
+#include <mutex>
+#include <utility>
+
+static std::mutex protect_output_gate;
+ProtectOutputGuard::ProtectOutputGuard() { protect_output_gate.lock(); }
+ProtectOutputGuard::~ProtectOutputGuard() { protect_output_gate.unlock(); }
+
+template<class Update> static void update_protect_global_state(Update&& update) {
+    ProtectOutputGuard guard;
+    update_global_state(std::forward<Update>(update));
+}
 #ifndef ENABLE_PROTECT_LOG
 #define ENABLE_PROTECT_LOG 1
 #endif
@@ -68,37 +79,13 @@ static void log_state_change_event(const char* channel, ProtectState_t last_stat
 }
 
 // 以下运行期阈值会在首次访问时由 NVS 配置覆盖；声明值与默认配置保持一致。
-protect_threshold_t temperature_threshold = {
-    .warning_threshold          = 60.0f,
-    .warning_recovery_threshold = 55.0f,
-    .protect_threshold          = 80.0f,
-    .protect_recovery_threshold = 75.0f,
-    .is_asc                     = true,
-};
+protect_threshold_t temperature_threshold = {};
 
-protect_threshold_t high_voltage_threshold = {
-    .warning_threshold          = 25.5f,
-    .warning_recovery_threshold = 25.3f,
-    .protect_threshold          = 27.5f,
-    .protect_recovery_threshold = 27.0f,
-    .is_asc                     = true,
-};
+protect_threshold_t high_voltage_threshold = {};
 
-protect_threshold_t low_voltage_threshold = {
-    .warning_threshold          = 6.6f,
-    .warning_recovery_threshold = 7.2f,
-    .protect_threshold          = 4.7f,
-    .protect_recovery_threshold = 5.0f,
-    .is_asc                     = false,
-};
+protect_threshold_t low_voltage_threshold = {};
 
-protect_threshold_t current_threshold = {
-    .warning_threshold          = 15.0f,
-    .warning_recovery_threshold = 15.0f,
-    .protect_threshold          = 25.0f,
-    .protect_recovery_threshold = 25.00f,
-    .is_asc                     = true,
-};
+protect_threshold_t current_threshold = {};
 
 /** @brief 四个保护通道的完整持久化配置。 */
 struct protect_config_t {
@@ -120,10 +107,10 @@ static constexpr protect_config_t DEFAULT_PROTECT_CONFIG = {
         },
     .high_voltage =
         {
-            .warning_threshold          = 25.5f,
-            .warning_recovery_threshold = 25.3f,
-            .protect_threshold          = 27.5f,
-            .protect_recovery_threshold = 27.0f,
+            .warning_threshold          = 50.4f,
+            .warning_recovery_threshold = 50.0f,
+            .protect_threshold          = 58.8f,
+            .protect_recovery_threshold = 58.0f,
             .is_asc                     = true,
         },
     .low_voltage =
@@ -136,10 +123,10 @@ static constexpr protect_config_t DEFAULT_PROTECT_CONFIG = {
         },
     .current =
         {
-            .warning_threshold          = 15.0f,
-            .warning_recovery_threshold = 15.0f,
-            .protect_threshold          = 25.0f,
-            .protect_recovery_threshold = 25.0f,
+            .warning_threshold          = 30.0f,
+            .warning_recovery_threshold = 30.0f,
+            .protect_threshold          = 50.0f,
+            .protect_recovery_threshold = 50.0f,
             .is_asc                     = true,
         },
 };
@@ -387,7 +374,7 @@ void protect_set_bypassed(bool bypassed, const char* source) {
     bool changed      = false;
     bool output_on    = false;
     bool active_fault = false;
-    update_global_state([&](GlobalState& state) {
+    update_protect_global_state([&](GlobalState& state) {
         if (state.flags.protect_bypassed == bypassed) {
             return;
         }
@@ -590,7 +577,7 @@ void protect_task(void* pvParameters) {
         if (temp_state != global_state_protects.temperature_protect_state) {
             last_state                                      = global_state_protects.temperature_protect_state;
             global_state_protects.temperature_protect_state = temp_state;
-            update_global_state([temp_state](GlobalState& state) {
+            update_protect_global_state([temp_state](GlobalState& state) {
                 state.protect_states.states_bit.temperature_protect_state = temp_state;
             });
             log_state_change_event("OTP", last_state, temp_state, state.board_temperature / 100.0f,
@@ -609,7 +596,7 @@ void protect_task(void* pvParameters) {
         if (temp_state != global_state_protects.high_voltage_protect_state) {
             last_state                                       = global_state_protects.high_voltage_protect_state;
             global_state_protects.high_voltage_protect_state = temp_state;
-            update_global_state([temp_state](GlobalState& state) {
+            update_protect_global_state([temp_state](GlobalState& state) {
                 state.protect_states.states_bit.high_voltage_protect_state = temp_state;
             });
             log_state_change_event("OVP", last_state, temp_state, state.voltage_mV / 1e3, high_voltage_threshold);
@@ -626,7 +613,7 @@ void protect_task(void* pvParameters) {
         if (temp_state != global_state_protects.low_voltage_protect_state) {
             last_state                                      = global_state_protects.low_voltage_protect_state;
             global_state_protects.low_voltage_protect_state = temp_state;
-            update_global_state([temp_state](GlobalState& state) {
+            update_protect_global_state([temp_state](GlobalState& state) {
                 state.protect_states.states_bit.low_voltage_protect_state = temp_state;
             });
             log_state_change_event("UVP", last_state, temp_state, state.voltage_mV / 1e3, low_voltage_threshold);
@@ -644,7 +631,7 @@ void protect_task(void* pvParameters) {
         if (temp_state != global_state_protects.current_protect_state) {
             last_state                                  = global_state_protects.current_protect_state;
             global_state_protects.current_protect_state = temp_state;
-            update_global_state([temp_state](GlobalState& state) {
+            update_protect_global_state([temp_state](GlobalState& state) {
                 state.protect_states.states_bit.current_protect_state = temp_state;
             });
             log_state_change_event("OCP", last_state, temp_state, std::abs(state.current_uA) / 1e6,
@@ -657,7 +644,7 @@ void protect_task(void* pvParameters) {
         if (first_check) {
             first_check                               = false;
             _protect_init_ok                          = true;
-            update_global_state([](GlobalState& state) { state.flags.protect_initialized = true; });
+            update_protect_global_state([](GlobalState& state) { state.flags.protect_initialized = true; });
             DEVICE_STATE_I(PROTECT_LOG_TAG, "protect: lifecycle old=starting new=ready result=ok");
         }
 
@@ -691,7 +678,7 @@ bool protect_init_ok() {
 esp_err_t protect_deinit() {
     protect_mos_fault_stop();
     if (protect_task_handle) {
-        update_global_state([](GlobalState& state) {
+        update_protect_global_state([](GlobalState& state) {
             state.protect_states.protect_states_raw = 0; // 清除保护状态
             state.flags.protect_initialized         = false;
         });

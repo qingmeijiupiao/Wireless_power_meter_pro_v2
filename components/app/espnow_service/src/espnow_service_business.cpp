@@ -111,53 +111,51 @@ void on_switch_request(const EspNowLink::Message& message, void*) {
     const SwitchAction action = static_cast<SwitchAction>(message.payload[4]);
     mark_remote_switch_connected(message.source);
 
-    // 执行产品动作，并将 PowerOutput 的内部结果映射为稳定的线上业务结果。
-    SwitchResponse response                 = {};
-    response.request_id                     = request_id;
-    response.action                         = action;
-    const int64_t             started_us    = esp_timer_get_time();
-    PowerOutput::OutputResult output_result = PowerOutput::OutputResult::FAIL_NOT_INIT;
-    switch (action) {
-    case SwitchAction::OFF:
-        output_result = PowerOutput::off(TAG);
-        break;
-    case SwitchAction::ON:
-        output_result = PowerOutput::on(TAG);
-        break;
-    case SwitchAction::TOGGLE:
-        output_result = PowerOutput::toggle(TAG);
-        break;
-    }
-    switch (output_result) {
-    case PowerOutput::OutputResult::OK:
-        response.result = SwitchResult::OK;
-        break;
-    case PowerOutput::OutputResult::FAIL_NOT_INIT:
-        response.result = SwitchResult::NOT_READY;
-        break;
-    case PowerOutput::OutputResult::FAIL_PROTECT_ACTIVE:
-    case PowerOutput::OutputResult::FAIL_COOLDOWN_ACTIVE:
-        response.result = SwitchResult::REJECTED;
-        break;
-    default:
-        response.result = SwitchResult::INTERNAL_ERROR;
-        break;
-    }
-    response.output_on = PowerOutput::get_state();
+    // Copy request metadata: the receive payload is only valid inside this callback.
+    const auto peer = message.source;
+    const int64_t started_us = esp_timer_get_time();
+    const auto operation = action == SwitchAction::OFF ? PowerOutput::OutputOperation::OFF :
+                           action == SwitchAction::ON ? PowerOutput::OutputOperation::ON :
+                                                        PowerOutput::OutputOperation::TOGGLE;
+    PowerOutput::request(operation, TAG,
+        [peer, request_id, action, started_us](PowerOutput::OutputResult output_result, bool output_on) {
+            SwitchResponse response{};
+            response.request_id = request_id;
+            response.action = action;
+            switch (output_result) {
+            case PowerOutput::OutputResult::OK:
+                response.result = SwitchResult::OK;
+                break;
+            case PowerOutput::OutputResult::FAIL_NOT_INIT:
+                response.result = SwitchResult::NOT_READY;
+                break;
+            case PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT:
+            case PowerOutput::OutputResult::FAIL_BUSY:
+            case PowerOutput::OutputResult::FAIL_CANCELLED:
+            case PowerOutput::OutputResult::FAIL_PROTECT_ACTIVE:
+            case PowerOutput::OutputResult::FAIL_COOLDOWN_ACTIVE:
+                response.result = SwitchResult::REJECTED;
+                break;
+            default:
+                response.result = SwitchResult::INTERNAL_ERROR;
+                break;
+            }
+            response.output_on = output_on;
 
-    // 业务处理耗时和来源 MAC 同时写日志与黑匣子，便于定位远程控制失败。
-    char mac[18] = {};
-    snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", message.source.bytes[0], message.source.bytes[1],
-             message.source.bytes[2], message.source.bytes[3], message.source.bytes[4], message.source.bytes[5]);
-    const int64_t elapsed_us = esp_timer_get_time() - started_us;
-    DEVICE_EVENT_I(TAG, "espnow: switch peer=%s action=%u result=%u output=%u process_us=%lld", mac,
-                   static_cast<uint32_t>(action), static_cast<uint32_t>(response.result), response.output_on ? 1U : 0U,
-                   static_cast<int64_t>(elapsed_us));
+            // 业务处理耗时和来源 MAC 同时写日志与黑匣子，便于定位远程控制失败。
+            char mac[18] = {};
+            snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", peer.bytes[0], peer.bytes[1],
+                     peer.bytes[2], peer.bytes[3], peer.bytes[4], peer.bytes[5]);
+            const int64_t elapsed_us = esp_timer_get_time() - started_us;
+            DEVICE_EVENT_I(TAG, "espnow: switch peer=%s action=%u result=%u output=%u process_us=%lld", mac,
+                           static_cast<uint32_t>(action), static_cast<uint32_t>(response.result), response.output_on ? 1U : 0U,
+                           static_cast<int64_t>(elapsed_us));
 
-    // 响应复用请求 ID；可靠发送的链路 ACK 由 espnow_link 自动处理。
-    uint8_t      payload[7] = {};
-    const size_t size       = encode_switch_response(response, payload, sizeof(payload));
-    EspNowLink::send(message.source, MSG_SWITCH_RESPONSE, payload, size, reliable_options());
+            // 响应复用请求 ID；可靠发送的链路 ACK 由 espnow_link 自动处理。
+            uint8_t      payload[7] = {};
+            const size_t size       = encode_switch_response(response, payload, sizeof(payload));
+            EspNowLink::send(peer, MSG_SWITCH_RESPONSE, payload, size, reliable_options());
+        });
 }
 
 /** @brief 接收当前遥控器在控制包之后发送的尽力电量上报。 */

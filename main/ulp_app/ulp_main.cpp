@@ -51,8 +51,8 @@ template <typename F> void with_shared_lock_void(F&& action) {
 /**
  * @brief 发布一组完整的 INA228 采样结果到 RTC 共享区。
  *
- * @param new_voltage_register_raw INA228 总线电压寄存器原始值。
- * @param new_shunt_register_raw INA228 分流电压寄存器原始值。
+ * @param new_voltage_register_raw INA228 总线电压折算后的兼容值，1.25mV/单位。
+ * @param new_shunt_register_raw INA228 分流电压折算后的兼容值，2.5uV/单位。
  * @param new_voltage_uv 换算后的总线电压，单位 uV。
  * @param new_current_uA 补偿后的电流，单位 uA。
  *

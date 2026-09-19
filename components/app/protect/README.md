@@ -33,7 +33,7 @@ flowchart TD
     Read --> OVP["check_now_state(OVP)"]
     Read --> UVP["check_now_state(UVP)"]
     Read --> OCP["check_now_state(OCP)"]
-    OTP --> Debounce["候选状态持续 200ms?"]
+    OTP --> Debounce["候选状态持续 OTP 200ms / 其他 2000ms?"]
     OVP --> Debounce
     UVP --> Debounce
     OCP --> Debounce
@@ -85,6 +85,12 @@ INA228 相关通道只有在 `lp_ina228_initialized = 1`、`lp_i2c_error = 0` �
 `lp_ina228_read_timeout = 0` 时才参与保护决策。测量链路降级时，OVP / UVP / OCP
 会恢复为 `NORMAL`，`protect_should_block_output()` 也不会因为这些通道的旧状态阻止输出。
 OTP 不依赖 INA228，仍保持正常保护能力。
+
+## 开启前短路保护
+
+短路检测由 `PowerOutput` 在 OFF→ON 事务中调用独立 ADC 中间件，复用本模块的保护旁路。它不进入四通道 20Hz 状态机，也不受 INA228 失效降级影响。每次开启重新检测，失败不自动重试。
+
+`ProtectOutputGuard` 用于将本模块的状态/旁路写入与输出最终检查、GPIO 提交串行化；状态变化回调在门控锁外执行，避免与输出事务锁反向嵌套。
 
 ## 集成与使用
 

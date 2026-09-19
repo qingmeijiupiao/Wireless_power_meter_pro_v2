@@ -88,6 +88,7 @@ OTA 诊断统一使用轻量文本事件，不附加结构化状态快照。上�
 | `/api/can` | GET/POST | 查询或设置 CAN 波特率和设备 ID |
 | `/api/calibration` | GET | 查询电流校准参数 |
 | `/api/diagnostics` | GET | 查询 INA228 原始寄存器等诊断数据 |
+| `/api/rtos/stats` | GET/POST | 查询或配置任务运行统计采样 |
 | `/api/logs` | GET | 按 `since` 增量读取最近 8KB 实时 ESP 日志 |
 | `/api/logs/clear` | POST | 清空实时日志缓冲区 |
 | `/api/blackbox` | GET | 按 `start` 原始记录游标和 `limit` 逻辑记录数分页读取持久化日志 |
@@ -184,7 +185,7 @@ WebBackend::start_with_wifi_service();
 }
 ```
 
-`reason` 可能为 `protect_active`、`cooldown_active`、`not_initialized` 等，具体来自 `PowerOutput::OutputResult`。
+`reason` 来自统一 `PowerOutput::result_to_string()`，包括 `protect_active`、`cooldown_active`、`not_initialized`、`short_circuit`、`short_detect_failed`、`busy`、`cancelled`、`timeout` 和 `gpio_failed`。接口等待最终结果，最多等待 750ms；超时取消尚未提交的开启。
 
 ### GET `/api/wifi/status`
 
@@ -244,7 +245,7 @@ WebBackend::start_with_wifi_service();
 
 ### POST `/api/wifi/off`
 
-停止 DNS 劫持、关闭 Captive Portal，并停止底层 WiFi。
+停止 DNS 劫持和 Captive Portal，关闭 IP 网络服务并进入 ESPNOW_ONLY，保留供 ESP-NOW 使用的 STA 射频。
 
 ## 请求流程
 

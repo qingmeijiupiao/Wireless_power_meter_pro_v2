@@ -167,11 +167,11 @@ def main():
     # 定义所有需要合并的分区（按偏移排序）
     partitions = []
 
-    # 添加 bootloader（固定偏移0x1000）
+    # 添加 ESP32-C6 bootloader（固定偏移0x0）
     bootloader_path = join(build_dir, "bootloader", "bootloader.bin")
     partitions.append({
         "name": "bootloader",
-        "offset": 0x0,     #这里有坑 C3的bootloader偏移是0x0不是0x1000
+        "offset": 0x0,     #ESP32-C6 bootloader 从0x0开始
         "path": bootloader_path,
         "required": True
     })

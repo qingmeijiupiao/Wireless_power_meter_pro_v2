@@ -1,100 +1,32 @@
 # ulp_loader
 
-HP 核侧 LP Core 加载模块，负责初始化 LP I2C、加载 `ulp_app` 编译出的二进制、启动 LP 核、搬运电流校准参数，并把 LP 核的原始寄存器共享变量指针暴露给调试命令。
+HP侧LP加载与共享数据桥接：初始化LP I2C、加载独立二进制、下发校准参数、启动LP并提供一致快照。调试命令通过GlobalState获取兼容诊断值，不暴露可随意读取的RTC raw指针。
 
-## 模块特点
+## 启动顺序
 
-- **LP Core 启动封装**：`LP_Core_Load()` 完成 LP I2C 初始化、二进制加载、运行和启动状态检查
-- **校准参数桥接**：从 `CurrentCalib::params_data` 读取 NVS 参数，写入 LP 核 RTC 共享变量
-- **启动握手**：等待 `ulp_run` 与 `ulp_ina228_init_ok` 置位，最长约 600ms
-- **LP 日志桥接**：后台任务轮询 `ulp_have_log`，将 LP 核日志值转为 HP 核 `ESP_LOGI`
-- **共享快照**：通过 LP/HP 跨核锁一次性读取状态、采样值、原始寄存器和累计值
+1. 将LP fast clock切到20MHz，和LP计时常量匹配。
+2. 初始化LP I2C：GPIO6 SDA、GPIO7 SCL、400kHz。
+3. 加载 `ulp_embed_binary` 生成的LP二进制。
+4. 初始化共享自旋锁，标记快照可用，清零状态位。
+5. 从 `CurrentCalib::params_data` 读取NVS校准值，复制到RTC；首次无需设置重载标志。
+6. 启动LP，每10ms等待 `ulp_run` 和 `ulp_ina228_init_ok`，总计约600ms。
+7. 握手成功后创建LP日志转发任务；超时返回 `ESP_ERR_TIMEOUT`，LP仍可继续重试。
 
-## 启动流程
+I2C控制器初始化、LP加载和启动错误使用ESP_ERROR_CHECK；不是所有错误都作为可恢复返回值处理。
 
-```mermaid
-sequenceDiagram
-    participant Main as app_main
-    participant Loader as LP_Core_Load()
-    participant I2C as LP I2C
-    participant RTC as RTC 共享内存
-    participant LPBin as ulp_main.bin
-    participant LP as LP 核
-    participant NVS as CurrentCalib::params_data
+## API
 
-    Main->>Loader: LP_Core_Load()
-    Loader->>RTC: ulp_state_raw = 0
-    Loader->>Loader: 切换 LP fast clock 到 20MHz 外部时钟源
-    Loader->>I2C: lp_core_i2c_master_init()
-    Loader->>LPBin: ulp_lp_core_load_binary()
-    Loader->>LP: ulp_lp_core_run()
-    Loader->>NVS: read()
-    Loader->>RTC: 写入 current_calib_params
-    loop 每 10ms，最多约 600ms
-        Loader->>RTC: 检查 ulp_run 和 ulp_ina228_init_ok
-    end
-    Loader->>RTC: 绑定 raw register 指针
-    Loader->>Loader: 创建 print_lp_core_log_task
-    Loader-->>Main: ESP_OK / ESP_ERR_TIMEOUT
-```
+| 接口 | 作用 |
+|---|---|
+| LP_Core_Load | 按上述顺序启动LP |
+| LP_Core_GetSnapshot | 共享锁内复制状态、采样、兼容raw和64位累计；空参数或锁未初始化返回false |
+| LP_Core_SetBoardTemperature | 发布0.01℃板温，锁未初始化时忽略 |
+| load_current_calib_params | loader实现内的校准下发函数；运行期调用时设置LP重载标志 |
 
-## 模块结构
+`LP_Core_Snapshot` 的分流raw单位2.5μV、电压raw单位1.25mV，均为INA228原生结果折算后的兼容值。
+mapgen导出的64位符号按字节复制，且整个快照在同一临界区读取，避免撕裂和别名问题。
 
-```mermaid
-flowchart TD
-    CMake["main/CMakeLists.txt<br/>ulp_embed_binary(ulp_main)"] --> Symbols["bin_start / bin_end<br/>链接符号"]
-    Symbols --> Loader["ulp_loader.cpp"]
-    Loader --> I2C["LP I2C<br/>GPIO6 SDA / GPIO7 SCL / 400kHz"]
-    Loader --> Core["ulp_lp_core_load_binary<br/>ulp_lp_core_run"]
-    Loader --> Calib["load_current_calib_params()<br/>NVS -> RTC"]
-    Loader --> State["ULP_CORE_STATE<br/>启动状态与日志标志"]
-    State --> LogTask["print_lp_core_log_task<br/>10ms 轮询"]
-```
+LP日志任务栈1536字节、优先级4、10ms轮询；当前LP主循环预留日志字段但没有周期日志上报。
+共享锁内只复制数据，不进行NVS、日志输出、I2C或插值计算。
 
-## 关键数据关系
-
-```mermaid
-classDiagram
-    class LP_Core_Load {
-        +esp_err_t LP_Core_Load()
-    }
-    class ULP_CORE_STATE {
-        +uint32_t ulp_state_raw
-        +ulp_have_log : 1
-        +ulp_i2c_init_err : 1
-        +ulp_ina228_init_ok : 1
-        +ulp_run : 1
-        +ulp_reload_calib_params : 1
-    }
-    class CurrentCalib_params_t {
-        +uint16_t current_base_K
-        +point_t points[6]
-        +int16_t temperature_K
-    }
-    class DebugPointers {
-        +LP_Core_GetSnapshot()
-        +LP_Core_SetBoardTemperature()
-    }
-    LP_Core_Load --> ULP_CORE_STATE
-    LP_Core_Load --> CurrentCalib_params_t
-    LP_Core_Load --> DebugPointers
-```
-
-## API 参考
-
-| API | 说明 |
-|-----|------|
-| `LP_Core_Load()` | 初始化并启动 LP 核，成功后返回 `ESP_OK`，启动握手超时返回 `ESP_ERR_TIMEOUT` |
-
-## 文件说明
-
-| 文件 | 作用 |
-|------|------|
-| `ulp_loader.cpp` | LP 核加载、启动握手、校准参数搬运、LP 日志轮询 |
-| `ulp_loader.h` | 对外声明 `LP_Core_Load()` |
-
-## 注意事项
-
-- 当前 `i2c_cfg` 固定使用 GPIO6/GPIO7，与 `hardware_config` 中 INA228 引脚保持一致；若未来硬件版本切换 INA228 引脚，需要同步调整这里。
-- `LP_Core_Load()` 内部使用 `ESP_ERROR_CHECK` 处理 I2C、二进制加载和运行错误，相关错误会直接触发 ESP-IDF 错误检查行为。
-- `LP_Core_GetSnapshot()` 使用 RTC 共享自旋锁，调用方不会读取到撕裂的 `int64_t` 累计值或不一致的采样字段。
+实际实现见 `ulp_loader.cpp`，公开接口见 `ulp_loader.h`，测量算法见 [ulp_app](../ulp_app/README.md)。

@@ -54,7 +54,7 @@ CMake 的 `run_post_build` 目标会自动执行它。脚本内部调用：
 python -m esptool --chip esp32c6 merge-bin ...
 ```
 
-合并时跳过 `blackbox` 和 `coredump` 分区，避免全新烧录覆盖日志类数据。脚本还会打印各分区占用情况。
+合并时不加入 `blackbox` 和 `coredump` 分区镜像。当前布局的黑匣子位于合并镜像末尾之外，按该镜像地址范围烧录可保留日志；整片擦除或调整分区布局不保证保留。脚本还会打印各分区占用情况。
 
 ## 手工资源工具
 
@@ -77,6 +77,10 @@ python3 scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 显示绘图函数、字体和页面render方法。外设服务使用模拟数据，验证裁剪、字符索引、长文本和
 保护标签，并输出 `build_ui_check/ui-preview.png` 与各页状态图。需要Pillow；不连接或烧录设备。
 
+### `check_power_output.py`
+
+`python scripts/check_power_output.py --cxx D:/mingw64/bin/g++.exe` 使用 C++20 线程模拟 RTOS/硬件，编译真实 `power_output.cpp` 与 `short_circuit_detect.cpp`。覆盖脉冲互锁、短路/ADC/清理失败、旁路变化、冷却、检测中关闭/切换/保护取消、同步和异步超时、手动检测互斥及生命周期，以及 500ms 内连续三次达标、低值重置计数。另编译真实 UIManager，验证三颗按键、同轮新通知、队列积压和双击/长按的弹窗关闭行为；另以确定性 tick/任务通知模拟验证各页面截止时间、事件提前唤醒、静态弹窗不重绘、曲线历史采样、通知洪泛下的耗时预算、慢帧跳帧以及 tick 回绕。输出在 `build_output_check/`；不能替代手板电气验收。UI 检查另生成 `12-short-circuit.png`、`13-short-check-failed.png`。
+
 ### `image_converter.py`
 
 把 PNG、JPG、BMP 等图片转换为 ST7789 可用的 RGB565 小端序数组头文件。
@@ -85,7 +89,7 @@ python3 scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 python3 scripts/image_converter.py <输入图片> <输出头文件> [-n 自定义数组名]
 ```
 
-图片超过 `160x80` 时脚本会警告，但不会阻止生成。依赖 Pillow。
+图片超过 `240x135` 时脚本会警告，但不会阻止生成。依赖 Pillow。
 
 ### `generate_backlight_lut.py`
 

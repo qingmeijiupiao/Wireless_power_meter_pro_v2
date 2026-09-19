@@ -36,11 +36,11 @@ sequenceDiagram
 
 | 设置项 | 类型 | 持久化/服务 |
 |---|---|---|
-| Rotate、Bright | 可调 | `display_config` / NVS |
-| Web、Protect、BBsnap | 可调 | 对应应用服务 |
-| NOWpair、Update | 动作 | ESP-NOW / OTA 异步服务 |
-| NOWinfo、Firmware、Blackbox、Calib | 详情 | 只读查询 |
-| CANrate、CANRs | 可调 | CAN NVS / 终端电阻服务 |
+| Rotation、Brightness | 可调 | `display_config` / NVS |
+| Web server at boot、Protection、Blackbox snapshot | 可调 | 对应应用服务 |
+| ESP-NOW pairing、Firmware update | 动作 | ESP-NOW / OTA 异步服务 |
+| ESP-NOW information、Firmware information、Blackbox information、Calibration | 详情 | 只读查询 |
+| CAN baud rate、CAN termination | 可调 | CAN NVS / 终端电阻服务 |
 
 ## OTA 确认流程
 

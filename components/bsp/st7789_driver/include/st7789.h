@@ -8,8 +8,8 @@
  * @example
  * ```cpp
  * ST7789::Config cfg = {
- *     .mosi_io_num = 19, .sclk_io_num = 21, .cs_io_num = 22,
- *     .dc_io_num = 2, .rst_io_num = 3, .bl_io_num = 15,
+ *     .mosi_io_num = 2, .sclk_io_num = 23, .cs_io_num = 8,
+ *     .dc_io_num = 22, .rst_io_num = 21, .bl_io_num = 1,
  *     .bl_active_state = true,
  *     .host_id = SPI2_HOST
  * };

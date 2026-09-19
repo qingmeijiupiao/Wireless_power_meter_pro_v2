@@ -9,6 +9,7 @@
 
 #include "esp_log.h"
 #include "core/page_registry.h"
+#include "core/ui_schedule.h"
 #include "config/display_config.h"
 #include "pages/curve/curve_history.h"
 #include "freertos/task.h"
@@ -73,11 +74,23 @@ bool UIManager::init() {
     current_page_ = 0;
     current_page()->on_enter();
     full_redraw_    = true;
-    last_render_ms_ = 0;
+    const TickType_t now = xTaskGetTickCount();
+    next_frame_tick_ = next_history_tick_ = resume_work_tick_ = now;
+    screen_task_.store(xTaskGetCurrentTaskHandle());
+    PowerOutput::set_event_notifier([] { UIManager::instance().request_redraw(); });
     return true;
 }
 
 bool UIManager::post_button_event(ButtonId button, ButtonEvent event) {
+    // Consume dismissal even when the normal button queue is full, so the
+    // fallback output toggle cannot turn a dismiss press into an ON request.
+    if (protection_dialog_active_) {
+        if (event == ButtonEvent::SHORT_PRESS || event == ButtonEvent::DOUBLE_CLICK ||
+            event == ButtonEvent::LONG_PRESS)
+            dismiss_protection_requested_ = true;
+        wake();
+        return true;
+    }
     if (event_queue_ == nullptr) {
         // 队列尚未创建时返回失败，主按钮调用方会回退到直接控制输出。
         return false;
@@ -87,7 +100,18 @@ bool UIManager::post_button_event(ButtonId button, ButtonEvent event) {
         .button = button,
         .event  = event,
     };
-    return xQueueSend(event_queue_, &msg, 0) == pdTRUE;
+    const bool posted = xQueueSend(event_queue_, &msg, 0) == pdTRUE;
+    if (posted) wake();
+    return posted;
+}
+
+void UIManager::wake() {
+    if (const auto task = screen_task_.load()) xTaskNotifyGive(task);
+}
+
+void UIManager::request_redraw() {
+    external_redraw_requested_ = true;
+    wake();
 }
 
 void UIManager::apply_saved_display_config() {
@@ -100,27 +124,85 @@ void UIManager::apply_saved_display_config() {
 }
 
 void UIManager::loop_once() {
-    const uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    CurveHistory::instance().poll(now_ms);
+    // Budget recovery cannot be bypassed by a notification flood. Events remain
+    // queued and are processed immediately afterwards. Unlike a fixed frame
+    // sleep, this interval scales with measured work and is zero for zero work.
+    TickType_t now = xTaskGetTickCount();
+    const TickType_t recovery = UiSchedule::remaining(now, resume_work_tick_);
+    if (recovery) vTaskDelay(recovery);
+
+    now = xTaskGetTickCount();
+    const bool dialog_active = protection_dialog_active_.load();
+    const bool dirty = dialog_active ? dialog_dirty_ : full_redraw_;
+    TickType_t wait_ticks = UiSchedule::remaining(now, next_history_tick_);
+    if (!dialog_active) {
+        wait_ticks = std::min(wait_ticks, UiSchedule::remaining(now, next_frame_tick_));
+    }
+    // Taking notifications even with zero timeout drains coalesced wakeups.
+    // A producer between this decision and the wait leaves a pending token.
+    ulTaskNotifyTake(pdTRUE, dirty ? 0 : wait_ticks);
+
+    const TickType_t work_started = xTaskGetTickCount();
+    now = work_started;
+    if (UiSchedule::due(now, next_history_tick_)) {
+        CurveHistory::instance().poll(now * portTICK_PERIOD_MS);
+        next_history_tick_ = now + UiSchedule::interval(CurveHistory::SAMPLE_INTERVAL_MS);
+    }
+
+    PowerOutput::FailureNotice notice{};
+    if (PowerOutput::take_failure_notice(notice)) {
+        const bool opening = !protection_dialog_active_.load();
+        const bool changed = notice.result != protection_notice_.result ||
+                             notice.voltage_mV != protection_notice_.voltage_mV ||
+                             notice.threshold_mV != protection_notice_.threshold_mV ||
+                             notice.error != protection_notice_.error;
+        protection_notice_ = notice;
+        protection_dialog_active_ = true;
+        dialog_dirty_ = dialog_dirty_ || opening || changed;
+        dialog_needs_background_ = dialog_needs_background_ || opening;
+    }
+    if (external_redraw_requested_.exchange(false) && !protection_dialog_active_) {
+        full_redraw_ = true;
+    }
+    if (dismiss_protection_requested_.exchange(false)) {
+        protection_dialog_active_ = false;
+        dialog_dirty_ = false;
+        xQueueReset(event_queue_);
+        full_redraw_ = true;
+        ESP_LOGI(TAG, "protection dialog dismissed");
+    }
+    if (protection_dialog_active_ && PowerOutput::get_state()) {
+        protection_dialog_active_ = false;
+        dialog_dirty_ = false;
+        full_redraw_ = true;
+    }
     process_button_events();
 
-    // 页面可以声明自己的刷新周期；按键或切页会强制 full_redraw_，立即刷新。
     Page* page = current_page();
-    if (!full_redraw_ && now_ms - last_render_ms_ < page->refresh_interval_ms()) {
-        vTaskDelay(pdMS_TO_TICKS(5));
-        return;
+    const TickType_t frame_started = xTaskGetTickCount();
+    if (protection_dialog_active_) {
+        if (dialog_dirty_) {
+            // Freeze the underlying page for this modal's lifetime. Both frame
+            // buffers retain the composed view, so later text updates do not
+            // require another page render or a third framebuffer.
+            if (dialog_needs_background_) page->render(RenderMode::Full);
+            UI::short_circuit_dialog(protection_notice_.result == PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT,
+                                     protection_notice_.voltage_mV, protection_notice_.threshold_mV);
+            ST7789::copy_buffers();
+            ST7789::sync_buffers();
+            dialog_dirty_ = dialog_needs_background_ = false;
+            full_redraw_ = false;
+        }
+    } else if (full_redraw_ || UiSchedule::due(frame_started, next_frame_tick_)) {
+        page->render(full_redraw_ ? RenderMode::Full : RenderMode::Normal);
+        if (page->is_overlay_active() && page->id() != PageId::Settings) draw_edit_indicator();
+        ST7789::sync_buffers();
+        full_redraw_ = false;
+        next_frame_tick_ = UiSchedule::next_frame(frame_started, xTaskGetTickCount(),
+                                                 UiSchedule::interval(page->refresh_interval_ms()));
     }
-
-    RenderMode mode = full_redraw_ ? RenderMode::Full : RenderMode::Normal;
-    page->render(mode);
-    if (page->is_overlay_active() && page->id() != PageId::Settings) {
-        draw_edit_indicator();
-    }
-
-    // 当前页面实现均为整屏绘制，因此每帧直接同步当前缓冲即可。
-    ST7789::sync_buffers();
-    full_redraw_    = false;
-    last_render_ms_ = now_ms;
+    const TickType_t finished = xTaskGetTickCount();
+    resume_work_tick_ = finished + UiSchedule::recovery(finished - work_started);
 }
 
 Page* UIManager::current_page() {
@@ -133,13 +215,23 @@ void UIManager::process_button_events() {
     }
 
     ButtonMessage msg = {};
-    // 每轮尽量清空队列，避免连续按键时 UI 状态落后于输入。
-    while (xQueueReceive(event_queue_, &msg, 0) == pdTRUE) {
+    // 有界消费，生产者持续入队也不能让一次 UI 工作无限延长。
+    for (uint8_t count = 0; count < 8 && xQueueReceive(event_queue_, &msg, 0) == pdTRUE; ++count) {
         handle_button(msg.button, msg.event);
     }
 }
 
 void UIManager::handle_button(ButtonId button, ButtonEvent event) {
+    if (protection_dialog_active_) {
+        if (event == ButtonEvent::SHORT_PRESS || event == ButtonEvent::DOUBLE_CLICK ||
+            event == ButtonEvent::LONG_PRESS) {
+            protection_dialog_active_ = false;
+            xQueueReset(event_queue_);
+            full_redraw_ = true;
+            ESP_LOGI(TAG, "protection dialog dismissed button=%s", button_to_str(button));
+        }
+        return;
+    }
     Page* page = current_page();
     ESP_LOGI(TAG, "button page=%s button=%s event=%s", page->title(), button_to_str(button), event_to_str(event));
 
@@ -182,7 +274,7 @@ void UIManager::handle_default_side_button(ButtonEvent event) {
 void UIManager::handle_default_main_button(ButtonEvent event) {
     if (event == ButtonEvent::SHORT_PRESS) {
         // 主按钮默认保持产品核心行为：切换输出状态。
-        PowerOutput::toggle(TAG);
+        PowerOutput::request(PowerOutput::OutputOperation::TOGGLE, TAG);
         full_redraw_ = true;
     }
 }

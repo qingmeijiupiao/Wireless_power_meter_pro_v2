@@ -2,12 +2,12 @@
 
 ST7789V TFT 显示屏（1.14" 240×135）SPI 驱动，提供像素绘制、矩形填充、等高变宽字体文本渲染、图像绘制及双缓冲同步等能力。
 
-横屏Y起始偏移`ROWSTART`现为51（bringup的53减2）；实际效果需正常/180度横屏实物确认。
+横屏偏移为 `COLSTART=40`、`ROWSTART=52`，以 `st7789.h` 为准；修改偏移后需检查正常/180°横屏实物边缘。
 文本支持ASCII 32–126，其余字节替换为问号；字形在右/下边缘裁剪，图片裁剪保留源图行跨度。
 
 ## 模块特点
 
-- **双缓冲**：内置两帧全屏缓冲区，绘制完成后调用 `sync_buffers()` 一次性刷屏，消除撕裂
+- **双缓冲**：内置两帧全屏缓冲区，绘制完成后调用 `sync_buffers()` 按最多32768字节分块同步传输当前帧，再切换缓冲；实际面板撕裂需实物验证
 - **RGB565 色彩**：`color_t` 类支持 RGB 三通道 / HEX 构造，自动转 RGB565 小/大端序
 - **基础图元**：支持像素、矩形、圆角矩形和 Bresenham 整数直线绘制
 - **等高变宽字体**：通过 `Font_t` 结构支持不等宽字符渲染，含抗锯齿插值（`map_px_data`）
@@ -34,8 +34,8 @@ flowchart LR
 #include "DENGB16.h"
 
 ST7789::Config cfg = {
-    .mosi_io_num = 19, .sclk_io_num = 21, .cs_io_num = 22,
-    .dc_io_num = 2, .rst_io_num = 3, .bl_io_num = 15,
+    .mosi_io_num = 2, .sclk_io_num = 23, .cs_io_num = 8,
+    .dc_io_num = 22, .rst_io_num = 21, .bl_io_num = 1,
     .bl_active_state = true, .host_id = SPI2_HOST
 };
 ST7789::init(&cfg);

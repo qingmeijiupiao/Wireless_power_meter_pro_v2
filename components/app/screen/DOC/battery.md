@@ -1,30 +1,20 @@
 # Battery 页面
 
-页面展示实时 V/A/W、输出状态、共享会话 mWh/mAh、系统运行时间和计量时间。
+页面显示实时 V/A/W、输出状态、共享会话累计能量/电量和会话时间，不显示系统运行时间。
 
-```mermaid
-sequenceDiagram
-    participant UI as UIManager
-    participant Page as BatteryPage
-    participant Meter as EnergyMeter
-    participant LCD as ST7789
-    UI->>Page: render()
-    Page->>Meter: snapshot()
-    Page->>LCD: draw values
-    UI->>Page: side long press
-    Page->>Meter: reset baseline
-```
+## 数据流
 
-清零只更新 `EnergyMeter` 基线，不修改 LP Core 累计计数，因此 Web 和 Shell 会同步看到新会话。
+`render()` 分别读取 `EnergyMeter::snapshot()` 和 `get_global_state()`，每250ms整屏重绘。
+侧键长按调用 `EnergyMeter::reset()` 并记录事件，只更新共享基线，不清零LP累计；Web和Shell同步使用新会话。
+其他按键交给 UIManager 的默认翻页或输出操作。
 
-## 数值规则
+## 布局和数值
 
-- 实时电压、电流和功率最多显示 3 个数字，小数点不计入数字数。
-- 累计值最多显示 6 个数字，随量级增大自动减少小数位。
-- 实时电流、功率按绝对值显示；累计电量和能量仍保留 LP Core 的方向符号。
-- `S:` 表示系统启动时长，`M:` 表示当前共享计量会话时长。
+- 顶部实时值位于x=6/55/104，会话时间位于x=154，输出状态圆位于(220,8)，直径14。
+- 累计两行位于y=32/82，使用44号数字和右对齐28号单位，左侧为W/A标记。
+- 实时值经过 `format_fixed_digits` 取绝对值，最多三位数字、两位小数。
+- 累计显示也取绝对值；LP和会话缓存保持有符号整数，显示规则不改变积分方向。
+- 默认优先mWh/mAh，约999.5m单位起换Wh/Ah；按数字和单位总宽度178px减少小数位，极大值使用科学计数法。
+- 累计值使用 `DENGB44_NUM`，单位使用 `DENGB28_UNITS`，不是固定六位数字或32号字体。
 
-## 按键
-
-侧键长按调用 `EnergyMeter::reset()` 并记录诊断事件。其他按键返回未处理，由
-`UIManager` 执行默认翻页或输出控制。
+实现见 `src/pages/battery_page.cpp`，整体说明见 [PRO V2 UI](pro_v2_ui.md)。

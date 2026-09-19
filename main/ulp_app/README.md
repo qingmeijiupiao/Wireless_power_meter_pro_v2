@@ -1,154 +1,91 @@
 # ulp_app
 
-`ulp_app` 运行在 ESP32-C6 的 LP Core 上。LP Core 可以理解为一个较轻量的辅助处理器：HP 核运行主业务、屏幕和网络，LP 核持续采样 INA228 并累计电量。
+ESP32-C6 LP Core 独立固件：通过LP I2C轮询INA228，执行整数电流校准、温漂补偿和软件积分，将结果放入RTC共享区。HP加载与快照接口见 [ulp_loader](../ulp_loader/README.md)。
 
-本目录只包含 LP 核程序。HP 核侧的加载、启动和校准参数搬运见 [`../ulp_loader/README.md`](../ulp_loader/README.md)。
-
-## 设计目标
-
-- 使用 LP I2C 持续读取 INA228，不占用 HP 核主任务。
-- 在 LP 核上完成电流校准、温漂补偿、电量积分和能量积分。
-- 通过 RTC 共享内存向 HP 核暴露测量值和状态。
-- 使用整数运算，适应 LP 核环境。
-
-## 整体架构
-
-```mermaid
-flowchart LR
-    INA["INA228<br/>I2C 地址 0x40"] --> LP["LP Core ulp_app"]
-    Calib["RTC 共享校准参数"] --> LP
-    Board["HP 核写入板温<br/>0.01 摄氏度"] --> LP
-    LP --> RTC["RTC 共享变量"]
-    RTC --> HP["HP 核 app_main<br/>每 5ms 同步到 global_state"]
-```
-
-## 启动与主循环
+## 执行流程
 
 ```mermaid
 flowchart TD
-    Start["LP Core main()"] --> Load["加载 6 点插值参数"]
-    Load --> Init["ulp_ina228_init()"]
-    Init --> Reset["复位 INA228<br/>读取 manufacturer ID"]
-    Reset --> Config["64 次平均<br/>BUS 与 SHUNT 连续转换"]
-    Config --> First["等待第一次有效电压采样"]
-    First --> InitOK["置位 ulp_ina228_init_ok"]
-    InitOK --> Run["置位 ulp_run"]
-    Run --> Loop["主循环"]
-    Loop --> Timer["timer_run()<br/>更新内部毫秒计数"]
-    Timer --> Sample["ina228_run()<br/>转换完成时更新测量值"]
-    Timer --> Every1s["每约 1000ms<br/>更新循环频率"]
-    Every1s --> Every20ms["每约 20ms<br/>检查校准参数重载"]
-    Every20ms --> Every10ms["每约 10ms<br/>积分电量和能量"]
-    Every10ms --> Loop
+    Start[LP main] --> Cal[读取校准参数并建立本地插值表]
+    Cal --> Init[复位 / 校验ID / 配置INA228 / 等待非零电压首样本]
+    Init --> Run[置位ulp_run]
+    Run --> Timer[更新20MHz周期计数对应的毫秒时钟]
+    Timer --> Sample[轮询转换完成 / 读取VBUS与VSHUNT]
+    Sample --> Reload[约20ms检查校准重载]
+    Reload --> Meter[约10ms软件积分]
+    Meter --> Timer
 ```
 
-INA228 初始化和恢复阶段会阻塞重试 reset / 配置 / 首样本读取，直到首个有效样本成功。
-重试期间置位 `ulp_i2c_init_err` 和 `ulp_ina228_read_timeout`，HP 核侧保护逻辑会据此暂停
-OVP / UVP / OCP，不会因为无效测量强制关断输出。初始化成功后才置位 `ulp_run`。
+初始化及异常恢复持续重试，当前没有每秒循环频率统计任务。`app_loop_every_ms` 使用 `>`，以上周期是调度目标，不是严格定时中断。
 
-## INA228 采样
+## INA228配置
 
-INA228 配置为：
+| 项目 | 当前代码 |
+|---|---|
+| 地址 | 0x40，LP I2C 400kHz，HP侧配置GPIO6/7 |
+| ID | manufacturer=0x5449，device按0xFFF0掩码匹配0x2280 |
+| CONFIG | 0x0000，ADCRANGE=0 |
+| ADC_CONFIG | 连续VBUS/VSHUNT/TEMP；三路1052μs转换时间，64次平均 |
+| 转换完成 | DIAG_ALRT的CNVRF（bit1） |
+| 采样 | 读取VBUS/VSHUNT的24位寄存器，取其中20位有效值 |
 
-| 项目 | 配置 |
-|------|------|
-| I2C 地址 | `0x40` |
-| 平均次数 | `64 samples` |
-| 分流电压转换时间 | `1100 us` |
-| 总线电压转换时间 | `1100 us` |
-| 模式 | 分流电压与总线电压连续转换 |
+没有使用INA228内置CURRENT、POWER、ENERGY或CHARGE结果完成产品计量。不能将HP的5ms发布周期或屏幕刷新周期视为芯片新样本周期。
 
-主循环读取 MASK/ENABLE 寄存器的转换完成标志。只有转换完成时才更新电压和电流。
-读寄存器失败或转换长时间未完成时，LP 核保留最后一次有效样本并置位
-`ulp_ina228_read_timeout`，随后阻塞执行 INA228 重新初始化，直到恢复首个有效样本。
+## 换算与校准域
 
-```mermaid
-flowchart LR
-    VRaw["BUS_VOLTAGE raw"] --> V["voltage_uv = raw * 1250"]
-    IRaw["SHUNT_VOLTAGE raw"] --> Dead{"abs(raw * current_base_K)<br/>< 5000 ?"}
-    Dead -->|是| Zero["current_uA = 0"]
-    Dead -->|否| Base["raw * current_base_K"]
-    Base --> Interp["+ 6 点插值补偿 * 100"]
-    Interp --> Temp["减去温漂补偿"]
-    Temp --> Current["current_uA"]
+```text
+voltage_uv = unsigned20(VBUS) * 3125 / 16
+voltage_register_raw = uint16(voltage_uv / 1250)
+shunt_register_raw = int16(signed20(VSHUNT) / 8)
 ```
 
-## 电流校准
+原生VBUS单位为195.3125μV，当前宽量程VSHUNT单位为312.5nV。
+兼容诊断电压单位为1.25mV，兼容校准分流单位为2.5μV；名称中的raw不是INA228原生20位结果。
+保留兼容域是为了沿用现有NVS校准结构和接口，不能只修改除数而不迁移所有消费者。
 
-校准参数类型来自 `current_calibration` 组件：
+电流先判断 `abs(raw * K) < 5000μA`，满足则归零；否则执行：
 
-| 字段 | 作用 |
-|------|------|
-| `current_base_K` | 分流寄存器原始值到电流的基础比例 |
-| `points[6]` | 6 个非等间距插值点，修正不同电流区间误差 |
-| `temperature_K` | 温漂补偿系数 |
-
-HP 核修改参数后，会置位 `ulp_reload_calib_params`。LP 核每约 20ms 检查一次该标志，重新加载插值表后清除标志。
-
-`Board_temperature` 由 HP 核写入，单位是 `0.01 摄氏度`。LP 核先换算成整摄氏度温差，再进行补偿。
-
-## 电量与能量积分
-
-LP 核每约 10ms 调用 `update_meter()`：
-
-```mermaid
-flowchart TD
-    Delta["计算 delta_ms"] --> Charge["累加 current_uA * delta_ms"]
-    Delta --> Energy["累加 current_uA * voltage_uv * delta_ms"]
-    Charge --> UAh{"跨过 3,600,000<br/>uA*ms 阈值?"}
-    Energy --> UWh{"跨过 3,600,000,000,000<br/>uA*uV*ms 阈值?"}
-    UAh --> MeterA["更新 meter_uah<br/>保留余数"]
-    UWh --> MeterW["更新 meter_uwh<br/>保留余数"]
+```text
+I = raw * K + interpolate(raw) * 100μA
+delta_temp = (Board_temperature - 3500) / 100
+I_final = I - (I / 1000) * temperature_K * delta_temp / 1000
 ```
 
-积分保留电流正负号，因此充电和放电方向会影响累计值。
-当 INA228 测量处于初始化错误或读取超时状态时，LP 核会跳过本次积分并刷新积分时间基准，
-避免用陈旧电压/电流继续累计电量。
+使用6点整数插值，负输入奇对称，范围外取边界偏移。校准参数来自 `CurrentCalib.h`。
+HP在共享锁内下发参数并置重载位；LP在同一临界区读/清标志，复制参数后在锁外重建插值表。板温由HP提供，单位0.01℃。
 
-## RTC 共享变量
+## 共享区与快照
 
-带 `LP_VAR` 的变量位于 `.rtc.bss` 段，HP 核可直接访问。
+| 字段 | 类型 | 语义 |
+|---|---|---|
+| ulp_state | uint32_t | 状态位 |
+| shared_lock | ulp_lp_core_spinlock_t | 跨核短临界区 |
+| log_data | uint32_t | 预留日志数据 |
+| voltage_uv | uint32_t | μV |
+| current_uA | int32_t | 校准后有符号μA |
+| voltage_register_raw | uint16_t | 1.25mV/单位兼容值 |
+| shunt_register_raw | int16_t | 2.5μV/单位兼容值 |
+| ina228_manufacturer_id | uint16_t | 厂商ID |
+| Board_temperature | int32_t | HP写入的0.01℃板温 |
+| meter_uah / meter_uwh | int64_t | 本次LP启动以来的有符号整数累计 |
+| current_calib_params | CurrentCalib::params_t | HP写入的校准参数 |
 
-| 变量 | 类型 | 单位 | 方向 | 说明 |
-|------|------|------|------|------|
-| `ulp_state` | `uint32_t` | - | LP -> HP，HP 可清零/置重载位 | 状态位集合 |
-| `shared_lock` | `ulp_lp_core_spinlock_t` | - | HP <-> LP | 保护 RTC 共享变量快照 |
-| `log_data` | `uint32_t` | - | LP -> HP | 预留 LP 日志数据 |
-| `voltage_uv` | `uint32_t` | uV | LP -> HP | 总线电压 |
-| `voltage_register_raw` | `uint16_t` | raw | LP -> HP | INA228 总线电压原始值 |
-| `current_uA` | `int32_t` | uA | LP -> HP | 补偿后的电流 |
-| `shunt_register_raw` | `int16_t` | raw | LP -> HP | INA228 分流电压原始值 |
-| `ina228_manufacturer_id` | `uint16_t` | raw | LP -> HP | INA228 厂商 ID |
-| `Board_temperature` | `int32_t` | 0.01 摄氏度 | HP -> LP | 板温，用于温漂补偿 |
-| `meter_uah` | `int64_t` | uAh | LP -> HP | 累计电量 |
-| `meter_uwh` | `int64_t` | uWh | LP -> HP | 累计能量 |
-| `current_calib_params` | `CurrentCalib::params_t` | - | HP -> LP | 校准参数 |
+I2C和计算在锁外，`publish_sample` 在同一临界区提交完整电压/电流/兼容raw。HP通过loader读取快照，不能直接读取零散共享变量；64位累计也必须保护。
 
-## 状态位
+## 积分与异常恢复
 
-| 位域 | 当前行为 |
-|------|----------|
-| `ulp_have_log` | 预留 LP 日志标志；当前主循环没有启用日志上报 |
-| `ulp_i2c_init_err` | INA228 初始化或恢复中置位；首个有效样本恢复后清零 |
-| `ulp_ina228_init_ok` | INA228 初始化和首个电压样本成功后置位 |
-| `ulp_ina228_read_timeout` | INA228 连续 1 秒没有完整采样时置位；恢复采样后清零 |
-| `ulp_run` | INA228 初始化成功后、进入主循环前置位 |
-| `ulp_reload_calib_params` | HP 核请求重新加载校准参数时置位，LP 核处理后清除 |
+软件积分保留带符号余数：μAh除数为3600000（μA·ms），μWh除数为3600000000000（μA·μV·ms）。HP的EnergyMeter另维护可重置会话基线，LP不承担掉电持久化。
 
-## 文件说明
+连续超过1000ms无完整样本时置 `ulp_ina228_read_timeout`，保留旧显示值并阻塞重试初始化。恢复阶段置 `ulp_i2c_init_err`，首个非零电压有效样本恢复后清除错误与超时标志，并置初始化成功位。HP据此暂停OVP/UVP/OCP阻断，OTP独立工作；不是清零后触发UVP关断。
 
-| 文件 | 作用 |
-|------|------|
-| `ulp_main.cpp` | LP 核入口、采样、补偿、积分和 RTC 共享变量 |
-| `ina228.hpp` | LP I2C 版 INA228 寄存器访问和配置 |
-| `ulp_Interp.hpp` | 固定容量非等间距插值器 |
-| `ulp_state.h` | HP/LP 共用的状态位定义 |
+`update_meter` 遇到无效状态时跳过积分并更新时间基准。但阻塞恢复期间不执行正常积分调度，长时间中断后的积分间隔仍需专项验证，不能保证恢复窗口已被该分支完全排除。
 
-## 注意事项
+## 已知边界与扩展要求
 
-- LP 核侧尽量使用整数运算，新增逻辑前要评估代码体积和执行开销。
-- HP 与 LP 之间通过 `shared_lock` 复制或提交 RTC 共享变量，持锁范围不包含 I2C 操作和插值计算。
-- `voltage_uv` 是 uV，HP 核写入 `global_state` 时除以 `1000` 转换为 mV。
-- `current_uA` 已包含死区、插值和温漂补偿，不是 INA228 原始寄存器值。
-- INA228 连续 1 秒没有完整采样时会设置 `ulp_ina228_read_timeout`，但保留最后一次有效电压/电流；HP 侧保护逻辑会暂停 INA228 相关保护。
-- `app_loop_every_ms()` 使用 `>` 判断间隔，因此文档使用“约 10ms / 20ms / 1000ms”描述。
+- 首样本就绪要求电压非零；0V输入不满足当前初始化退出条件。
+- 分流兼容值仍为int16，`/8`后再窄化并未限幅；HP电压也只有uint16 mV。扩大实际量程前需同步校准结构、通信字段与日志。
+- `ulp_run` 是运行状态，不是心跳或样本新鲜度计数器。
+- 时钟换算依赖loader选择20MHz LP时钟；修改时钟需同时修改LP计时。
+- 新增计算需检查LP 8192字节保留区、整数乘积溢出、周期和共享锁时长。
+
+文件职责：`ina228.hpp`为寄存器访问，`ulp_main.cpp`为采样/积分，`ulp_Interp.hpp`为整数插值，`ulp_state.h`为共享状态位。

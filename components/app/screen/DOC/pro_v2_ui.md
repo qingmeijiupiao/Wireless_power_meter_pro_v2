@@ -1,88 +1,60 @@
 # PRO V2 240×135 UI
 
-设计参考：[Figma 第一版](https://www.figma.com/design/R9U9UBv5g8ntgI0wLGUphC/PROV2-UI-DESIGN?node-id=2024-6)。
-Figma MCP 已达到套餐限额；实现依据本次已读取的原稿数据、新稿创建坐标及截图，未重新导出图片。
+本文描述当前已提交实现，不保留适配过程中的中间字号、坐标或工具会话记录。页面源码是布局的最终依据。
 
-## 布局
+## 当前布局与交互
 
-| 页面 | 主要区域 |
-|---|---|
-| Main | 左侧V/A读数x=6、y=4/55，单位位于右侧；右侧62px状态区；y=113功率/温度/输出栏 |
-| Battery | y=5实时值；y=33/69累计值，单位固定在右侧；y=114双计时 |
-| Curve | y=5控制栏；单指标绘图区(50,32)，185×97；ALL绘图区(6,32)，228×97 |
-| Wireless | 顶部模式/遥控器电量；228px宽SSID行；左信号柱，右IP与信号信息 |
-| Settings | x=60，174×33三行菜单、行距40；弹窗(8,8)，224×119 |
-| Boot | 复用现有156×77 Logo，居中于(42,29)，不增加启动图片 |
+| 页面 | 当前布局 | 刷新周期 |
+|---|---|---|
+| Main | 左侧 V/A 两行大读数，右侧运行时间与 OTP/OVP或UVP/OCP 标签；底部 W/T/ON-OFF 栏 | 67ms，约15 FPS |
+| Battery | 顶部实时 V/A/W、会话时间和输出圆；y=32/82 两行累计值，W/A badge、44号数字与右对齐28号单位 | 250ms |
+| Curve | 顶部指标/窗口栏；单指标区(50,32)、185×97；ALL区(6,32)、228×97 | 200ms |
+| Wireless | 网络模式、遥控器电量、SSID、信号柱、IP和信道信息 | 500ms |
+| Settings | x=60 的三行174×33菜单，行距40；左侧程序绘制滑杆；详情弹窗 | 200ms |
+| Boot | 156×77 Logo 居中于(42,29) | 按保存的Logo时长 |
 
-共用图元在 `widgets/ui_chrome` 中实现。数值小数位、计量单位、时间窗、按键和设置项沿用
-原代码。保护标签正常时隐藏；OVP/UVP选择规则不变。设置菜单仍以中间行为编辑选中项，
-Figma 里的高亮和告警只是示例，不作为实时状态。
+普通状态主键切换输出，侧键向后翻页，BOOT复用键向前翻页。页面优先消费事件，编辑或弹窗中的按键行为以各页面为准。
+Battery 侧键长按重置共享会话；Curve 侧键双击切换 V/A/W/ALL，长按进入编辑；Wireless 侧键长按进入 AP；Settings 长按进入菜单。
 
-Figma 使用 Inter；固件复用等线 DENGB16/20，并新增 DENGB28_NUM（实际字高27）。
-容量页使用28号数字子集；主页V/A使用DENGB44_NUM，功率复用DENGB20。字形和间距因此与
-Inter 预览略有不同。累计值单位固定右对齐区域，给极大累计读数留出空间。
+## 字体与数值
 
-长数值优先降至20/16字号，不通过减少小数位挤入。极端长度超出最小字号容纳范围时
-显示省略号，避免误显示成另一个数值；SSID同样按像素宽度省略。非ASCII字符仍按原有
-ASCII显示能力用问号代替，此版不引入中文字库。
+- 主页面 V/A 和容量大数字使用 `DENGB44_NUM`，子集为 `0123456789.-+VAWmhe`。
+- 容量单位使用 `DENGB28_UNITS`，子集为 `mWAh`；普通文本使用 DENGB16/20，最低回退字号为 DENGB16。
+- Main 电压固定三位小数，电流和功率使用 `UI::format_fixed_digits`，最多五位数字、三位小数。
+- Battery 顶部实时值最多三位数字、两位小数；实时值和累计显示均取绝对值，底层积分仍保留符号。
+- 容量数值与单位总宽度限制178px，按实际字体宽度逐步减少小数位；约999.5m单位起优先换算 Wh/Ah，极大值使用明确指数。
+- 公共 `UI::text` 按字符支持与区域宽度选择字号，仍过长则加省略号；非ASCII字节显示问号，不提供中文字库。
+- 正常保护标签隐藏；仅显示实际告警/保护。OVP正常时显示UVP，不能同时占用该标签区域。
+- 设置名称和值保持单行，空间不足时使用可辨识短名称；弹窗保留完整标题。共13个设置项。
 
-## Flash 与 RAM
+## 资源与驱动
 
-- 常规页不再引用RGB565标签、开关、圆点和齿轮图片；旧资源文件保留但不链接入固件。
-- 保留的启动Logo数据为24,024字节。
-- 新数字字体仅包含 `0123456789.-+`：位图5,400字节，95项宽度表95字节，另加Font_t结构。
-- 不增加帧缓冲或曲线历史长度；沿用bringup的两帧RGB565缓冲，共129,600字节RAM。
-- 应用分区沿用PRO V2的0x150000，不调整OTA/黑匣子分区。
-- `draw_char`裁剪屏幕边缘，127及非ASCII字节不会越界索引字表；裁剪图片保留原始行跨度。
+常规页面图标由 `widgets/ui_chrome` 和页面基础图元绘制，仅启动画面引用位图。
+旧标签图片与中间字号文件仍保留在资源目录，但未引用资源不代表实际链接占用。
 
-## 生成与检查
+两帧 RGB565 像素数据共129600字节；曲线缓存保持1200点、每点4字节。
+当前每帧整屏重绘，SPI polling 按最多32768字节拆分发送64800字节像素数据，再切换缓冲，不是异步局部刷新。
 
-在仓库根目录运行（Python需Pillow）：
+横屏 `COLSTART=40`、`ROWSTART=52`，见 `st7789.h`；正/反横屏使用现有旋转映射。
+字符和图片在屏幕边缘裁剪，图片裁剪保留原始行跨度。
+APP分区每槽0x150000，UI修改后仍需检查固件体积与联网时堆余量。
+
+## 字体生成与验证
+
+从仓库根目录运行，Python需Pillow：
 
 ```powershell
-python scripts/generate_font.py components/assets/Fonts/Front_preview/DENGB.TTF 28 DENGB28_NUM --chars '0123456789.-+' --output-dir build_ui_assets
-Copy-Item build_ui_assets/DENGB28_NUM.h components/assets/Fonts/Font_include/
-Copy-Item build_ui_assets/DENGB28_NUM.cpp components/assets/Fonts/Font_src/
-Copy-Item build_ui_assets/DENGB28_NUM_preview.bmp components/assets/Fonts/Front_preview/
+python scripts/generate_font.py components/assets/Fonts/Front_preview/DENGB.TTF 44 DENGB44_NUM --chars '0123456789.-+VAWmhe' --output-dir build_ui_assets
+python scripts/generate_font.py components/assets/Fonts/Front_preview/DENGB.TTF 28 DENGB28_UNITS --chars 'mWAh' --output-dir build_ui_assets
+```
+
+将生成的对应 `.h`、`.cpp`、`_preview.bmp` 分别同步至 Fonts 的 `Font_include`、`Font_src`、`Front_preview`，然后检查：
+
+```powershell
 python scripts/check_display_ui.py
+idf.py reconfigure
 idf.py build
 ```
 
-主机检查需要C++17编译器，默认`g++`，可用`--cxx`指定。它抽取并编译实际C++绘图函数和页面
-render方法，使用真实字体和曲线历史算法、模拟外设服务；检查裁剪、非法字符、数字子集、
-长文本边界与保护标签，并生成11张状态截图和`build_ui_check/ui-preview.png`。
-不覆盖真实按键/服务、SPI时序、实际屏幕颜色与位置。业务代码仍通过ESP-IDF全量构建验证。
-
-## 实物确认
-
-按用户要求，横屏`ROWSTART`当前为52（沿用工作区的实物校准值），沿用驱动的正/反横屏映射，保留已校准的Y起始地址。
-竖屏模式的已有偏移保持不变。没有烧录设备；应在实物确认正常横屏与180度横屏的上/下边缘、
-颜色、30Hz主页刷新及Wi-Fi运行时剩余堆内存。初始化和SPI分段发送沿用bringup实现。
-
-所有页面的最小字号统一为DENGB16（实际字高15），不再回退到DENGB12。
-OUTPUT、曲线NOW/MAX和电池百分比区域已加宽；复用现有16号字库，不新增字库数据。
-
-设置菜单保留左侧滑杆图标，名称和值保持单行DENGB16。优先完整名称，
-空间不足时使用清楚的短名称（如ESP-NOW info、CAN rate），弹窗标题保持全写。
-CAN速率显示Mbps/kbps单位，不增加图片资源。
-主机预览额外覆盖全部13个设置项，检查名称与代表性数值的像素宽度。
-
-首页V/A数字使用44号子集，位图14842字节、宽度表95字节。原36号字库不再被页面引用。
-去掉V/A/W前置色块，V/A单位与数值合成字符串，以同一字号紧随数值显示，每个字段只调用一次UI::text；功率以16号字体和W后缀显示在底栏。
-底栏y=113：功率x=6、温度x=120、ON/OFF色块x=190，不再显示OUTPUT和温度前置T色块。
-保持三位小数，超长数值按宽度降字号；不新增页面图片或帧缓冲。
-生成命令：`python scripts/generate_font.py components/assets/Fonts/Front_preview/DENGB.TTF 44 DENGB44_NUM --chars '0123456789.-+VA' --output-dir build_ui_assets`。
-
-容量页更新：顶部x=6/55/104显示实时V/A/W，x=154显示容量计时，取消系统时间。
-输出圆仍位于(220,8)、直径14。容量两行y=32/82，保留W/A badge；
-数字和mWh/mAh单位合并为一次UI::text，统一使用DENGB32_METER（32号，六位数字自动调整小数位）。
-字库仅生成0123456789.-+mWAh，位图9425字节，宽度表95字节。
-
-容量页最终字号更新为DENGB44_NUM，与主页共用字库；保留badge和顶部布局。
-不足1000时优先显示mWh/mAh，达到换算边界后显示Wh/Ah；按198px宽度逐步减少小数位。
-极大累计值使用带明确指数的Wh/Ah科学计数法，保持44号字体。仅改变显示，累计精度不变。
-44号字库包含0123456789.-+VAWmhe，位图20213字节；32号容量字库不再被页面引用。
-
-容量页当前布局：W/A badge与44号数值等高，单位独立使用28号字库DENGB28_UNITS，
-仅包含mWAh（位图2349字节、宽度表95字节）。按数值44号与单位28号的实际总宽度
-减少小数位并换算单位，保证整行在178px内；单位右对齐。
+主机检查需要C++17编译器，默认g++，可用 `--cxx` 指定。脚本编译实际绘图函数、页面render和字体，模拟业务服务，检查裁剪、非法字符、格式化边界、保护标签与全部设置项宽度，并生成 `build_ui_check/ui-preview.png` 及各状态图。
+它不覆盖真实按键调度、SPI时序、实物颜色、偏移或射频并发。提交 `e4b555d` 记录了当时编译、主机检查与手板测试通过；后续修改仍应重新执行相关验证。

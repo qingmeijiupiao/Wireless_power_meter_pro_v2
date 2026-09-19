@@ -59,6 +59,19 @@ void protect_set_bypassed(bool bypassed, const char* source);
 /** @return true 表示保护动作当前已旁路。 */
 bool protect_is_bypassed();
 
+/**
+ * @brief 串行化保护状态/旁路写入与输出最终检查、GPIO 提交。
+ * @note 只用于短事务，不能持有它执行检测、日志回调或修改保护状态。
+ *       PowerOutput 锁顺序固定为输出事务锁 -> 此锁 -> GlobalState 锁。
+ */
+class ProtectOutputGuard {
+  public:
+    ProtectOutputGuard();
+    ~ProtectOutputGuard();
+    ProtectOutputGuard(const ProtectOutputGuard&) = delete;
+    ProtectOutputGuard& operator=(const ProtectOutputGuard&) = delete;
+};
+
 /** @brief 返回保护通道数，当前固定为 4。 */
 uint8_t protect_get_channel_count();
 

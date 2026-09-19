@@ -560,20 +560,16 @@ esp_err_t init() {
                 printf("Error: state must be 0-1\n");
                 return 1;
             }
-            if (state == 0) {
-                PowerOutput::off(TAG);
-                printf("Output off\n");
-            } else {
-                PowerOutput::on(TAG);
-                printf("Output on\n");
-            }
-            return 0;
+            const auto result = state == 0 ? PowerOutput::off(TAG) : PowerOutput::on(TAG);
+            printf("Output result: %s, state: %s\n", PowerOutput::result_to_string(result),
+                   PowerOutput::get_state() ? "on" : "off");
+            return result == PowerOutput::OutputResult::OK ? 0 : 1;
         }));
 
     /**
      * @brief  short_detect - 输出端短路检测调试命令
      * @usage  short_detect [status|test|threshold [voltage_V]]
-     * @note   当前仅用于手动测试，执行 test 前应确保主输出关闭。
+     * @note   手动测试通过 PowerOutput 仲裁，输出开启或已有检测时拒绝。
      */
     shell.register_command(ShellCommand_t(
         "short_detect", "Short-circuit detector control", "status|test|threshold [voltage_V]",
@@ -586,7 +582,7 @@ esp_err_t init() {
                 const uint16_t threshold_mV = ShortCircuitDetect::get_threshold_mV();
                 printf("Short detect threshold: %.3f V (%u mV)\n", threshold_mV / 1000.0f,
                        static_cast<unsigned>(threshold_mV));
-                printf("Test pulse is idle; run 'short_detect test' with main output off\n");
+                printf("Run 'short_detect test' with main output off; busy tests are rejected\n");
                 return 0;
             }
 
@@ -596,9 +592,9 @@ esp_err_t init() {
                     return 1;
                 }
                 ShortCircuitDetect::Result result = {};
-                const esp_err_t err = ShortCircuitDetect::test(result);
-                if (err != ESP_OK) {
-                    printf("Short detect test failed: %s\n", esp_err_to_name(err));
+                const auto status = PowerOutput::test_short_circuit(result, TAG);
+                if (status != PowerOutput::OutputResult::OK && status != PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT) {
+                    printf("Short detect test failed: %s\n", PowerOutput::result_to_string(status));
                     return 1;
                 }
                 printf("Short detect result: %s, voltage=%.3f V (%u mV), threshold=%.3f V (%u mV), samples=%u\n",
@@ -902,11 +898,11 @@ esp_err_t init() {
 
     /**
      * @brief  ina228_register - 获取ina228寄存器值
-     * @usage  ina228_register <register_addr>
-     * @note   显示当前ina228电压电流寄存器值
+     * @usage  ina228_register
+     * @note   显示当前快照中的兼容校准/诊断值，不直接访问原生寄存器
      */
     shell.register_command(
-        ShellCommand_t("ina228_register", "Get ina228 register value", "", [](int argc, char** argv) -> int {
+        ShellCommand_t("ina228_register", "Get normalized INA228 diagnostic values", "", [](int argc, char** argv) -> int {
             const auto state = get_global_state();
             printf("ina228_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
                    state.current_register_raw, static_cast<uint32_t>(state.voltage_register_raw),

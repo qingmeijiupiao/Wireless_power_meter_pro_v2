@@ -59,8 +59,8 @@ def convert_image_to_rgb565(input_path, output_path, image_name=None):
         width, height = img.size
         
         # 检查图片尺寸
-        if width > 160 or height > 80:
-            print(f"警告: 图片尺寸({width}x{height})超过显示屏最大尺寸(160x80)")
+        if width > 240 or height > 135:
+            print(f"警告: 图片尺寸({width}x{height})超过显示屏最大尺寸(240x135)")
         
         # 获取图片数据
         pixels = img.load()
@@ -157,8 +157,8 @@ def main():
   
 注意事项:
   - 支持格式: PNG, JPG, JPEG, BMP, GIF等
-  - 输出格式: RGB565 16位大端序
-  - 最大推荐尺寸: 160x80像素
+  - 输出格式: RGB565 uint16_t数组（目标平台内存为小端序）
+  - 最大推荐尺寸: 240x135像素
         """
     )
     

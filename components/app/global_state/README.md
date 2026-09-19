@@ -70,8 +70,8 @@ classDiagram
 | `meter_mwh` | `float` | mWh | LP 核累计能量的展示值 |
 | `board_temperature` | `int16_t` | 0.01 摄氏度 | TMP235 板载传感器 |
 | `chip_temperature` | `int16_t` | 0.01 摄氏度 | ESP 芯片内部传感器 |
-| `current_register_raw` | `int16_t` | 原始值 | INA228 分流电压寄存器 |
-| `voltage_register_raw` | `uint16_t` | 原始值 | INA228 总线电压寄存器 |
+| `current_register_raw` | `int16_t` | 2.5μV/单位 | INA228 VSHUNT 折算后的兼容校准值 |
+| `voltage_register_raw` | `uint16_t` | 1.25mV/单位 | INA228 VBUS 折算后的兼容诊断值 |
 
 `static_assert(sizeof(GlobalState) == 28)` 会在编译期检查结构大小。修改字段时不要只改 README，也要确认对齐和黑匣子快照是否仍然符合预期。
 
@@ -99,7 +99,7 @@ classDiagram
 | `screen_initialized` | `screen` | 屏幕是否初始化完成 |
 | `blackbox_enabled` | `app_main` | 黑匣子是否可用 |
 
-> `lp_ina228_read_timeout` 置位时 LP 核会清零电压、电流，复用 UVP 链路执行保守关断；完整采样恢复后自动清零。
+> `lp_ina228_read_timeout` 置位时 LP 核保留最后一次有效电压、电流并重试初始化。HP 暂停 OVP/UVP/OCP 阻断，OTP 仍独立工作；完整采样恢复后清除超时位。
 
 ## 使用方式
 
@@ -124,7 +124,7 @@ update_global_state([](GlobalState& state) {
 - `update_global_state()` 的 action 域内持有全局状态锁，只做轻量字段读写，不要执行日志、绘图、网络发送、NVS 等耗时操作。
 - 单位不要混用：温度是 `0.01 摄氏度`，电流是 `uA`，电压是 `mV`。
 - `energy_meter` 保留精确的 `int64_t uAh/uWh` HP 缓存，供可重置计量会话使用。
-- INA228 原始寄存器随主状态一起同步，业务模块不会绕过跨核锁直接读取 RTC 内存。
+- INA228 折算后的兼容诊断值随主状态一起同步，业务模块不会绕过跨核锁直接读取 RTC 内存。
 
 ## 环境与依赖
 
