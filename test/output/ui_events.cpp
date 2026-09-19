@@ -143,7 +143,7 @@ int main(){
     ui.loop_once();assert(UI::output_view().pressed && UiHost::requests==before_press+1);
     assert(ui.post_button_event(ButtonId::Main,ButtonEvent::RELEASE));
     ui.loop_once();assert(UI::output_view().pressed && UiHost::requests==before_press+1);
-    // 双击/长按事件不再触发主按键动作。
+    // 双击/长按事件不触发主按键动作。
     assert(ui.post_button_event(ButtonId::Main,ButtonEvent::DOUBLE_CLICK));
     ui.loop_once();assert(!UI::output_view().pressed && UiHost::requests==before_press+1);
 
@@ -187,7 +187,7 @@ int main(){
     status.request_id=4;status.result=PowerOutput::OutputResult::FAIL_GPIO;
     view=feedback.update(status,2700,false);
     assert(view.state==UI::OutputVisual::On && std::strcmp(view.detail,"OUTPUT ERROR")==0);
-    // 普通关闭后冷却计时仍在，但必须立即显示 OFF，不得提示 WAIT。
+    // 普通关闭后即使冷却计时未清零也显示 OFF。
     status.request_id=5;status.result=PowerOutput::OutputResult::OK;
     status.output_on=false;status.bypassed=false;status.protect_mask=0;
     status.cooldown_remaining_ms=500;

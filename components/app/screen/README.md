@@ -2,7 +2,7 @@
 
 ESP32-C6 本地屏幕应用组件。组件负责 ST7789V 240×135 显示、页面生命周期、按键事件分发、页面刷新和显示配置持久化。
 
-240×135 第一版 UI 已按 Figma 适配稿移植：主页两行大读数与底部状态栏、双行累计电量、扩大曲线区、
+240×135 UI 按 Figma 适配稿实现：主页两行大读数与底部状态栏、双行累计电量、扩大曲线区、
 网络信息和三行设置菜单。布局、资源预算、主机预览与验证方法见 [PRO V2 UI 适配说明](DOC/pro_v2_ui.md)。
 
 ## 架构
@@ -163,7 +163,7 @@ ESP_ERROR_CHECK(SCREEN::init_buttons());
 - [Wireless 无线状态与配网页](DOC/wireless.md)
 - [Settings 设置、详情与动作页](DOC/settings.md)
 
-刷新由 UIManager 按页面截止时间和事件通知统一调度，不再 5ms 轮询或固定帧后休眠。`core/ui_schedule.h` 定义 75% 工作占比预算及慢帧跳帧规则，防止按键和扫描定时器饥饿。静态保护弹窗冻结背景，仅内容变化时重绘；关闭后恢复页面周期，期间曲线历史仍按 500ms 截止时间采样。详见架构设计。
+刷新由 UIManager 按页面截止时间和事件通知统一调度，不按 5ms 轮询或固定帧后休眠。`core/ui_schedule.h` 定义 75% 工作占比预算及慢帧跳帧规则，防止按键和扫描定时器饥饿。静态保护弹窗冻结背景，仅内容变化时重绘；关闭后恢复页面周期，期间曲线历史仍按 500ms 截止时间采样。详见架构设计。
 
 
-输出体验第一版新增多状态胶囊、按下反馈和拒绝原因提示，见 [主页说明](DOC/dashboard.md#输出状态胶囊)。业务快照、纯展示模型和控件绘制分层，见 [输出反馈分层](DOC/architecture.md#输出反馈分层)。主机预览由 `scripts/check_display_ui.py` 生成 `build_ui_check/output-feedback-preview.png`。
+主页提供多状态输出胶囊、按下反馈和拒绝原因提示，见 [主页说明](DOC/dashboard.md#输出状态胶囊)。业务快照、纯展示模型和控件绘制分层，见 [输出反馈分层](DOC/architecture.md#输出反馈分层)。主机预览由 `scripts/check_display_ui.py` 生成 `build_ui_check/output-feedback-preview.png`。

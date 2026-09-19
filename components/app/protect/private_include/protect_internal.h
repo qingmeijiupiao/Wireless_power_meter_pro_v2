@@ -34,7 +34,7 @@ void protect_mos_fault_start();
 /**
  * @brief 停止 MOS 损坏诊断任务。
  *
- * @note protect_deinit() 调用本接口，确保保护组件反初始化后不再访问全局测量状态。
+ * @note protect_deinit() 调用本接口，避免保护组件反初始化后访问全局测量状态。
  */
 void protect_mos_fault_stop();
 

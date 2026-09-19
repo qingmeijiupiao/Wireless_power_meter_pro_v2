@@ -252,7 +252,7 @@ bool ulp_ina228_init() {
 /**
  * @brief 加载电流校准参数并重建 LP 本地插值表。
  *
- * @note 校准参数从 RTC 共享区复制到 LP 本地副本，运行期采样不再频繁持锁访问共享参数。
+ * @note 校准参数从 RTC 共享区复制到 LP 本地副本，避免运行期采样频繁持锁访问共享参数。
  */
 void load_current_calib_params() {
     local_current_calib_params = read_current_calib_params();

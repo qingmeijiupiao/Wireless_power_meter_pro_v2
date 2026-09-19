@@ -38,7 +38,7 @@ class OutputFeedback {
             view.state = V::Locked;
             label = "LOCK";
         } else if (recent && result_ == R::FAIL_COOLDOWN_ACTIVE && status.cooldown_remaining_ms) {
-            // 只有冷却期内尝试开启才提示等待；关闭后剩余冷却不得显示 WAIT。
+            // 只有冷却期内尝试开启被拒时才提示等待；普通关闭直接显示 OFF。
             view.state = V::Wait;
             label = "WAIT";
         } else if (recent && result_ != R::OK && result_ != R::PENDING &&

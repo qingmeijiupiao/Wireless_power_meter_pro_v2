@@ -21,7 +21,7 @@ constexpr uint8_t  STORE_VERSION              = 1;
 
 struct StoredPeer {
     uint8_t used;
-    uint8_t reserved_role; /**< 保留旧存储布局，不再参与链路逻辑。 */
+    uint8_t reserved_role; /**< 存储布局占位，不参与链路逻辑。 */
     uint8_t mac[MAC_ADDRESS_SIZE];
     uint8_t lmk[KEY_SIZE];
     uint8_t last_channel;

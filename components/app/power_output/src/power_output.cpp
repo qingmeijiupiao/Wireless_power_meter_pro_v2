@@ -34,7 +34,7 @@ ProtectPolicy protect_policy;
 CooldownPolicy cooldown_policy(OUTPUT_ON_COOLDOWN_MS, OUTPUT_OFF_COOLDOWN_MS);
 bool protect_callback_registered = false;
 
-// 只保留一个开启事务，避免 OFF 后遗留排队开启。同步调用超时后，
+// 只保留一个开启事务，OFF 后不会再排队执行旧的开启请求。同步调用超时后，
 // 工作任务继续持有事务槽，直到测试激励清理完成。
 struct PendingRequest {
     bool used = false;

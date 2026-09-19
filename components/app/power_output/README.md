@@ -262,12 +262,10 @@ PowerOutput::add_policy(&max_on_policy);
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
 
-## 输出交互快照与事务日志（2026-09-19）
+## 输出交互快照与事务日志
 
-`snapshot()` 是非消费式短时加锁接口，包含请求编号、结果、检测中标志、实际输出、保护旁路、四通道阻断位和剩余冷却毫秒。接受请求及所有普通输出请求完成时，在事务锁外唤醒观察者。UI 不再根据 ON/OFF 推断是否正在检测。
+`snapshot()` 是非消费式短时加锁接口，包含请求编号、结果、检测中标志、实际输出、保护旁路、四通道阻断位和剩余冷却毫秒。接受请求及所有普通输出请求完成时，在事务锁外唤醒观察者。UI 根据快照判断是否正在检测，不从 ON/OFF 推断。
 
 忙拒绝不覆盖正在执行的请求；OFF 取消后发布新请求状态，旧工作任务的完成结果不能覆盖它。新的开启请求或成功关闭会清理未消费的旧失败通知。同步超时通知只发布一次，工作任务迟到完成清理不会重新弹窗。诊断检测不修改普通输出交互快照。
 
-每个请求由仲裁层记录一次摘要：`id/src/op/前后状态/result/ms/test/test_ms/mv/vmin/min/n/bad/err/bypass/wait/protect`。`ms` 为请求至记录时的总耗时，`test_ms` 为检测调用耗时；`mv/vmin` 为最后一次与窗口内最低有效采样，`n/bad` 为有效/无效采样总数。失败弹窗展示 `vmin`，避免最后一次读数回升后看起来与短路判定矛盾。输出真实变化使用 DEVICE_STATE_I；普通拒绝/取消使用 DEVICE_EVENT_I；幂等成功仅 INFO。短路、检测故障、超时、GPIO 错误使用 WARN，沿用 Hook 的文本加快照机制。策略拒绝不再重复 WARN，ADC 瞬时重试降为 DEBUG 并汇总到最终结果。底层激励清理错误仍保留 ERROR，以免 RAII 退出故障静默。
-
-这里仅收敛输出事务日志；通信轮询日志、全局重复故障限频和故障瞬间快照协议的优化另行开展。
+每个请求由仲裁层记录一次摘要：`id/src/op/前后状态/result/ms/test/test_ms/mv/vmin/min/n/bad/err/bypass/wait/protect`。`ms` 为请求至记录时的总耗时，`test_ms` 为检测调用耗时；`mv/vmin` 为最后一次与窗口内最低有效采样，`n/bad` 为有效/无效采样总数。失败弹窗展示 `vmin`（窗口内最低有效电压）。输出真实变化使用 DEVICE_STATE_I；普通拒绝/取消使用 DEVICE_EVENT_I；幂等成功仅 INFO。短路、检测故障、超时、GPIO 错误使用 WARN，沿用 Hook 的文本加快照机制。策略拒绝不重复 WARN，ADC 瞬时重试为 DEBUG 并汇总到最终结果。底层激励清理错误保留 ERROR，以免 RAII 退出故障静默。

@@ -153,8 +153,7 @@ void Button::_run_state_machine() {
             }
             _state.is_long_sent = 1;
 
-            // 【关键修复】触发长按类事件后，必须清空之前的连击计数
-            // 否则松手后会错误触发 SHORT_PRESS 或 DOUBLE_CLICK
+            // 触发长按类事件后清空连击计数，避免松手时误触发短按或双击。
             _state.click_count = 0;
         }
 

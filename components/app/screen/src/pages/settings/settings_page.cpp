@@ -147,7 +147,7 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
         return true;
     }
 
-    // 菜单中上翻页键回退一项，下翻页键前进一项，避免另一颗翻页键落到全局翻页。
+    // 菜单中下翻页键前进一项，上翻页键回退一项。
     if (button == ButtonId::Side && event == ButtonEvent::SHORT_PRESS) {
         selected_ = static_cast<uint8_t>((selected_ + 1) % ITEM_COUNT);
         return true;

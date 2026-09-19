@@ -96,8 +96,8 @@ OtaManager::begin(OtaManager::IMAGE_SIZE_UNKNOWN);
 
 ## 回滚
 
-回滚接口直接封装 ESP-IDF API。当前工程尚未开启
-`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`。后续启用自动回滚时，应用层需要：
+回滚接口直接封装 ESP-IDF API。当前工程未开启
+`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`。启用自动回滚时，应用层需要：
 
 1. 在新固件启动后执行必要自检。
 2. 自检通过后调用 `confirm_running_firmware()`。

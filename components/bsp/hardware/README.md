@@ -44,11 +44,9 @@ flowchart LR
 
 ## 集成与使用
 
-### ALERT 数据就绪能力（尚未启用）
+### ALERT 数据就绪能力
 
-INA228 支持将转换完成状态输出到 ALERT：设置 `DIAG_ALRT`（0x0B）的 `CNVR`（bit14），默认 `APOL=0` 为低有效开漏输出，与当前外部上拉连接相符。所有启用的转换和平均完成后，`CNVRF`（bit1）置位。若后续采用锁存通知，可设置 `ALATCH`（bit15），读状态寄存器后解除锁存。
-
-ALERT 也可能由其他告警触发，处理时仍需检查状态。当前 LP 轮询会读取 `DIAG_ALRT` 并清除就绪标志；后续改用 GPIO4 时应由采样侧统一消费该状态，避免 HP 与 LP 竞争读取。当前固件没有启用这项 GPIO 通知功能。
+固件未启用 ALERT GPIO 通知。INA228 可将转换完成状态输出到 `DIAG_ALRT`（0x0B）：`CNVR`（bit14）使能，`APOL=0` 为低有效开漏输出，与外部上拉连接相符；转换和平均完成后 `CNVRF`（bit1）置位。LP 侧通过轮询读取 `DIAG_ALRT` 并清除就绪标志，不通过 GPIO 通知。
 
 依据：[TI INA228 数据手册](https://www.ti.com/lit/ds/symlink/ina228.pdf)，第7.3.4、7.3.7节及表7-16。
 
