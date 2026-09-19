@@ -100,10 +100,14 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
         return false;
     }
 
+    const bool page_short = event == ButtonEvent::SHORT_PRESS &&
+                            (button == ButtonId::Side || button == ButtonId::Previous);
+
     if (mode_ == Mode::Dialog) {
         if (selected_ == FirmwareUpdate) {
             const OtaService::Status ota = OtaService::get_status();
-            if (button == ButtonId::Side && event == ButtonEvent::SHORT_PRESS) {
+            // 上下翻页键都可取消确认，主按键仍负责确认/重试。
+            if (page_short) {
                 update_confirm_ = false;
                 mode_           = Mode::Menu;
                 return true;
@@ -129,8 +133,8 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
             return true;
         }
 
-        if ((button == ButtonId::Main && event == ButtonEvent::PRESS) ||
-            (button == ButtonId::Side && event == ButtonEvent::SHORT_PRESS)) {
+        // 详情信息弹窗：上下翻页键和主按键都可退出。
+        if (page_short || (button == ButtonId::Main && event == ButtonEvent::PRESS)) {
             mode_ = Mode::Menu;
             return true;
         }
@@ -143,8 +147,14 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
         return true;
     }
 
+    // 菜单中上翻页键回退一项，下翻页键前进一项，避免另一颗翻页键落到全局翻页。
     if (button == ButtonId::Side && event == ButtonEvent::SHORT_PRESS) {
-        selected_ = (selected_ + 1) % ITEM_COUNT;
+        selected_ = static_cast<uint8_t>((selected_ + 1) % ITEM_COUNT);
+        return true;
+    }
+
+    if (button == ButtonId::Previous && event == ButtonEvent::SHORT_PRESS) {
+        selected_ = static_cast<uint8_t>((selected_ + ITEM_COUNT - 1) % ITEM_COUNT);
         return true;
     }
 

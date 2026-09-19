@@ -6,9 +6,11 @@
 stateDiagram-v2
     [*] --> View
     View --> Menu: side long
-    Menu --> Menu: side short / select next
+    Menu --> Menu: side short next item
+    Menu --> Menu: previous short prev item
     Menu --> Dialog: activate detail/action
     Dialog --> Menu: side short
+    Dialog --> Menu: previous short
     Menu --> View: side long
     Dialog --> View: side long
 ```
@@ -30,7 +32,7 @@ sequenceDiagram
     end
 ```
 
-设置业务分为显示、连接和系统诊断三类。所有修改通过对应服务公开接口完成；主按键以按下边沿触发，OTA 使用两次按下确认升级的二阶段操作，避免误触。
+设置业务分为显示、连接和系统诊断三类。所有修改通过对应服务公开接口完成；主按键以按下边沿触发，OTA 使用两次按下确认升级的二阶段操作，避免误触。菜单内上下翻页键分别前进/回退设置项，详情或动作弹窗中两者都可返回菜单。
 
 ## 设置项
 
