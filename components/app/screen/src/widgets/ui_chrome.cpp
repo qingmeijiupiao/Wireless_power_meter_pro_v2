@@ -154,8 +154,61 @@ void badge(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const char *value, ST
         text(x + 3, y, w - 6, h, value, fg, bg, font, Align::Center);
 }
 
+namespace {
+OutputView current_output_view;
+ST7789::color_t output_color() {
+    switch (current_output_view.state) {
+    case OutputVisual::On: return CURRENT;
+    case OutputVisual::Checking:
+    case OutputVisual::Wait: return YELLOW;
+    case OutputVisual::Locked:
+    case OutputVisual::Error: return VOLTAGE;
+    default: return MUTED;
+    }
+}
+} // namespace
+
+void set_output_view(const OutputView& view) { current_output_view = view; }
+const OutputView& output_view() { return current_output_view; }
+
+void output_capsule(uint16_t x, uint16_t y) {
+    const auto& view = current_output_view;
+    const auto color = output_color();
+    // 纯黑底只保留边框和状态色，文字背景与主页其他区域一致。
+    ST7789::fill_round_rect(x, y, 72, 23, 6, ST7789::BLACK, ST7789::BLACK);
+    ST7789::draw_round_rect(x, y, 72, 23, 6, view.pressed ? 2 : 1,
+                           view.pressed ? ST7789::WHITE : color, ST7789::BLACK);
+    if (view.state == OutputVisual::Checking) {
+        for (uint8_t i = 0; i < 3; ++i)
+            ST7789::fill_rect(x + 5, y + 6 + i * 4, 4, 3, i == view.animation ? color : GRID);
+    } else {
+        ST7789::fill_round_rect(x + 5, y + 8, 7, 7, 3, color, ST7789::BLACK);
+    }
+    text(x + 15, y + 3, 52, 17, view.label, color, ST7789::BLACK, DENGB16, Align::Center);
+    // 旁路使用独立蓝色标记，避免与 ON 的绿色混为一谈。
+    if (view.bypassed) ST7789::fill_rect(x + 23, y + 20, 26, 2, CYAN);
+}
+
 void output_dot(bool enabled) {
-    ST7789::fill_round_rect(220, 8, 14, 14, 7, enabled ? CURRENT : VOLTAGE, ST7789::BLACK);
+    (void)enabled; // 统一使用屏幕任务更新的输出展示快照。
+    const auto& view = current_output_view;
+    ST7789::fill_round_rect(220, 8, 14, 14, 7, output_color(), ST7789::BLACK);
+    if (view.state == OutputVisual::Checking)
+        ST7789::fill_rect(223 + view.animation * 3, 13, 3, 4, ST7789::BLACK);
+    if (view.pressed) ST7789::draw_round_rect(218, 6, 18, 18, 8, 1, ST7789::WHITE, ST7789::BLACK);
+    if (view.bypassed) ST7789::fill_rect(222, 24, 10, 2, CYAN);
+}
+
+void output_feedback_overlay(bool dashboard) {
+    const auto& view = current_output_view;
+    const bool transient = view.detail[0] || (!dashboard &&
+        (view.pressed || view.state == OutputVisual::Checking || view.state == OutputVisual::Wait));
+    if (!transient) return;
+    ST7789::fill_rect(4, 109, 154, 25, ST7789::BLACK);
+    const char* detail = view.detail[0] ? view.detail : view.state == OutputVisual::Checking ? "CHECKING OUTPUT" :
+                         view.state == OutputVisual::Wait ? "PLEASE WAIT" : "BUTTON PRESSED";
+    text(6, 112, 150, 20, detail, output_color());
+    if (!dashboard) output_capsule();
 }
 } // namespace UI
 

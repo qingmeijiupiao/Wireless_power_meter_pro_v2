@@ -23,7 +23,6 @@ class ProtectPolicy : public OutputPolicy {
     /** @brief `check` 接口。 */
     OutputResult check(OutputOperation op, bool current_state) override {
         if (op == OutputOperation::ON && protect_should_block_output()) {
-            ESP_LOGW("ProtectPolicy", "protect active, cannot turn on");
             return OutputResult::FAIL_PROTECT_ACTIVE;
         }
         return OutputResult::OK;

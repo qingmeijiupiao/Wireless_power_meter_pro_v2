@@ -108,19 +108,20 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
                 mode_           = Mode::Menu;
                 return true;
             }
-            if (!update_confirm_ && button == ButtonId::Main && event == ButtonEvent::SHORT_PRESS &&
+            // 主按键只有按下边沿：第一次按下进入确认态，再次按下确认升级。
+            if (!update_confirm_ && button == ButtonId::Main && event == ButtonEvent::PRESS &&
                 ota.state == OtaService::State::UPDATE_AVAILABLE) {
                 update_confirm_ = true;
                 return true;
             }
-            if (update_confirm_ && button == ButtonId::Main && event == ButtonEvent::LONG_PRESS) {
+            if (update_confirm_ && button == ButtonId::Main && event == ButtonEvent::PRESS) {
                 const esp_err_t err = OtaService::request_upgrade();
                 if (err == ESP_OK) {
                     update_confirm_ = false;
                 }
                 return true;
             }
-            if (button == ButtonId::Main && event == ButtonEvent::SHORT_PRESS &&
+            if (button == ButtonId::Main && event == ButtonEvent::PRESS &&
                 (ota.state == OtaService::State::FAILED || ota.state == OtaService::State::UP_TO_DATE)) {
                 OtaService::request_check();
                 return true;
@@ -128,7 +129,7 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
             return true;
         }
 
-        if ((button == ButtonId::Main && event == ButtonEvent::SHORT_PRESS) ||
+        if ((button == ButtonId::Main && event == ButtonEvent::PRESS) ||
             (button == ButtonId::Side && event == ButtonEvent::SHORT_PRESS)) {
             mode_ = Mode::Menu;
             return true;
@@ -147,7 +148,7 @@ bool SettingsPage::handle_button(ButtonId button, ButtonEvent event) {
         return true;
     }
 
-    if (button == ButtonId::Main && event == ButtonEvent::SHORT_PRESS) {
+    if (button == ButtonId::Main && event == ButtonEvent::PRESS) {
         activate_selected_item();
         return true;
     }

@@ -49,7 +49,7 @@ class TestPulseGuard {
     }
 
     esp_err_t enable() {
-        // Even an unsuccessful enable must attempt to restore a low level.
+        // 开启失败也必须尝试恢复低电平。
         enabled_ = true;
         const esp_err_t err = set_short_test_enabled(true);
         return err;
@@ -90,6 +90,12 @@ static esp_err_t init_unlocked() {
 
 esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
     result = {};
+    // 声明在激励守卫之前，退出时连同清理耗时一并统计。
+    struct TimingGuard {
+        Result& result;
+        int64_t started_us = esp_timer_get_time();
+        ~TimingGuard() { result.duration_ms = static_cast<uint32_t>((esp_timer_get_time() - started_us) / 1000); }
+    } timing{result};
     TestLock lock;
     if (!lock.acquired()) return ESP_ERR_INVALID_STATE;
     esp_err_t err = init_unlocked();
@@ -97,8 +103,9 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
         return err;
     }
 
-    result.threshold_mV = get_threshold_mV();
-    result.is_short = true;
+    result.threshold_mV   = get_threshold_mV();
+    result.min_voltage_mV = UINT16_MAX;
+    result.is_short       = true;
     if (cancelled && cancelled(context)) return ESP_ERR_INVALID_STATE;
     TestPulseGuard pulse;
     const int64_t deadline_us = esp_timer_get_time() + static_cast<int64_t>(MAX_TEST_TIME_MS) * 1000;
@@ -118,15 +125,15 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
         err            = read_short_detect_voltage_mV(voltage_mV);
         if (err != ESP_OK || voltage_mV < 0) {
             const esp_err_t sample_error = err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
-            consecutive_good = 0;
+            // 读取失败不代表短路，不打断已累计的达标样本；只有有效低电压才清零。
             ++consecutive_invalid;
-            ESP_LOGW(TAG, "invalid ADC sample retry=%u/%u error=%s voltage=%d mV",
+            ++result.invalid_count;
+            ESP_LOGD(TAG, "invalid ADC sample retry=%u/%u error=%s voltage=%d mV",
                      static_cast<unsigned>(consecutive_invalid),
                      static_cast<unsigned>(MAX_CONSECUTIVE_INVALID_SAMPLES),
                      esp_err_to_name(sample_error), voltage_mV);
             if (consecutive_invalid >= MAX_CONSECUTIVE_INVALID_SAMPLES) {
-                ESP_LOGE(TAG, "ADC failed for %u consecutive samples: %s",
-                         static_cast<unsigned>(consecutive_invalid), esp_err_to_name(sample_error));
+                // 最终故障及重试统计由输出仲裁层统一记录。
                 return sample_error;
             }
             const int64_t remaining_ms = (deadline_us - esp_timer_get_time()) / 1000;
@@ -134,10 +141,11 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
             vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
             continue;
         }
-        // A delayed ADC result outside the window must not qualify an opening.
+        // 超过检测窗口才返回的 ADC 样本不能用于判定通过。
         if (esp_timer_get_time() >= deadline_us) break;
         consecutive_invalid = 0;
         result.voltage_mV = static_cast<uint16_t>(voltage_mV);
+        if (result.voltage_mV < result.min_voltage_mV) result.min_voltage_mV = result.voltage_mV;
         ++result.sample_count;
         consecutive_good = voltage_mV >= result.threshold_mV ? consecutive_good + 1 : 0;
         if (consecutive_good >= REQUIRED_GOOD_SAMPLES) {
@@ -149,15 +157,18 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
         vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
     }
 
+    if (result.sample_count == 0) result.min_voltage_mV = 0;
+
     err = pulse.disable();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "failed to disable test pulse: %s", esp_err_to_name(err));
         return err;
     }
 
-    ESP_LOGI(TAG, "test result=%s voltage=%u mV threshold=%u mV samples=%u",
+    ESP_LOGD(TAG, "test result=%s voltage=%u min=%u threshold=%u mV samples=%u",
              result.is_short ? "SHORT" : "OPEN", static_cast<unsigned>(result.voltage_mV),
-             static_cast<unsigned>(result.threshold_mV), static_cast<unsigned>(result.sample_count));
+             static_cast<unsigned>(result.min_voltage_mV), static_cast<unsigned>(result.threshold_mV),
+             static_cast<unsigned>(result.sample_count));
     return ESP_OK;
 }
 

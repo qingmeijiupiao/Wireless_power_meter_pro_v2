@@ -32,6 +32,7 @@ enum class ButtonEvent {
     SUPER_LONG_PRESS, /**< 超长按 */
     SHORT_THEN_LONG,  /**< 短按后长按 */
     RELEASE,          /**< 松开 */
+    PRESS,           /**< 消抖后的按下边沿，仅用于即时反馈，不代表短按成立 */
     EVENT_MAX         /**< 枚举边界，用于数组长度 */
 };
 

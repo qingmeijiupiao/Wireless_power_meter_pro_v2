@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "core/page.h"
 #include "power_output.h"
+#include "core/output_feedback.h"
 #include <atomic>
 
 namespace SCREEN {
@@ -116,6 +117,13 @@ class UIManager {
 
     /** 当前页面在 pages_ 中的索引 */
     uint8_t current_page_ = 0;
+
+    OutputFeedback output_feedback_;
+    TickType_t next_feedback_tick_ = 0;
+    bool feedback_deadline_active_ = false;
+    bool main_pressed_ = false;
+    TickType_t press_expires_tick_ = 0;
+    void update_output_feedback();
 
     TickType_t next_frame_tick_ = 0;
     TickType_t next_history_tick_ = 0;

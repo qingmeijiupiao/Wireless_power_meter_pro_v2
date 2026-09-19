@@ -362,7 +362,8 @@ void draw_round_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t ra
             const uint8_t inner_alpha =
                 rounded_rect_coverage(local_x - thickness, local_y - thickness, inner_w, inner_h, inner_radius);
             const uint8_t alpha = outer_alpha > inner_alpha ? outer_alpha - inner_alpha : 0;
-            write_aa_pixel(screen_x, screen_y, alpha, color, bg);
+            // 只绘制边框像素，透明处保留原有内容，避免覆盖已填充的内部。
+            if (alpha) write_aa_pixel(screen_x, screen_y, alpha, color, bg);
         }
     }
 }

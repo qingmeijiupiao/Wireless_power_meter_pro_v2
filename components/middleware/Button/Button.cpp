@@ -106,6 +106,8 @@ void Button::_event_task(void* arg) {
             return "SHORT_THEN_LONG";
         case 5:
             return "RELEASE";
+        case 6:
+            return "PRESS";
         default:
             return "UNKNOWN_EVENT";
         }
@@ -136,7 +138,10 @@ void Button::_run_state_machine() {
     bool now_pressed = _is_pressed();
 
     if (now_pressed) {
+        const uint32_t previous_ticks = _ticks;
         _ticks     += BTN_SCAN_TICK_MS;
+        if (previous_ticks <= BTN_DEBOUNCE_MS && _ticks > BTN_DEBOUNCE_MS)
+            _post_event(ButtonEvent::PRESS);
         _gap_ticks  = 0; // 按下期间，强制重置空闲计时
 
         // 1. 长按 & 短按再长按 判定

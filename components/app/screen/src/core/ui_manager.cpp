@@ -41,6 +41,10 @@ const char* event_to_str(ButtonEvent event) {
         return "long";
     case ButtonEvent::SUPER_LONG_PRESS:
         return "super_long";
+    case ButtonEvent::PRESS:
+        return "press";
+    case ButtonEvent::RELEASE:
+        return "release";
     default:
         return "unknown";
     }
@@ -82,11 +86,10 @@ bool UIManager::init() {
 }
 
 bool UIManager::post_button_event(ButtonId button, ButtonEvent event) {
-    // Consume dismissal even when the normal button queue is full, so the
-    // fallback output toggle cannot turn a dismiss press into an ON request.
+    // 弹窗关闭事件不依赖普通队列容量，避免队列满时回退成开启请求。
     if (protection_dialog_active_) {
-        if (event == ButtonEvent::SHORT_PRESS || event == ButtonEvent::DOUBLE_CLICK ||
-            event == ButtonEvent::LONG_PRESS)
+        if (event == ButtonEvent::PRESS || event == ButtonEvent::SHORT_PRESS ||
+            event == ButtonEvent::DOUBLE_CLICK || event == ButtonEvent::LONG_PRESS)
             dismiss_protection_requested_ = true;
         wake();
         return true;
@@ -124,9 +127,8 @@ void UIManager::apply_saved_display_config() {
 }
 
 void UIManager::loop_once() {
-    // Budget recovery cannot be bypassed by a notification flood. Events remain
-    // queued and are processed immediately afterwards. Unlike a fixed frame
-    // sleep, this interval scales with measured work and is zero for zero work.
+    // 通知洪泛不能跳过恢复预算；事件保留在队列中，恢复后立即处理。
+    // 恢复时间随实际工作耗时变化，未执行工作时无需额外等待。
     TickType_t now = xTaskGetTickCount();
     const TickType_t recovery = UiSchedule::remaining(now, resume_work_tick_);
     if (recovery) vTaskDelay(recovery);
@@ -137,9 +139,12 @@ void UIManager::loop_once() {
     TickType_t wait_ticks = UiSchedule::remaining(now, next_history_tick_);
     if (!dialog_active) {
         wait_ticks = std::min(wait_ticks, UiSchedule::remaining(now, next_frame_tick_));
+        if (feedback_deadline_active_)
+            wait_ticks = std::min(wait_ticks, UiSchedule::remaining(now, next_feedback_tick_));
+        if (main_pressed_)
+            wait_ticks = std::min(wait_ticks, UiSchedule::remaining(now, press_expires_tick_));
     }
-    // Taking notifications even with zero timeout drains coalesced wakeups.
-    // A producer between this decision and the wait leaves a pending token.
+    // 零等待也消费合并通知；此处到等待之间到达的新通知不会丢失。
     ulTaskNotifyTake(pdTRUE, dirty ? 0 : wait_ticks);
 
     const TickType_t work_started = xTaskGetTickCount();
@@ -166,6 +171,7 @@ void UIManager::loop_once() {
     }
     if (dismiss_protection_requested_.exchange(false)) {
         protection_dialog_active_ = false;
+        main_pressed_ = false;
         dialog_dirty_ = false;
         xQueueReset(event_queue_);
         full_redraw_ = true;
@@ -173,18 +179,18 @@ void UIManager::loop_once() {
     }
     if (protection_dialog_active_ && PowerOutput::get_state()) {
         protection_dialog_active_ = false;
+        main_pressed_ = false;
         dialog_dirty_ = false;
         full_redraw_ = true;
     }
     process_button_events();
+    update_output_feedback();
 
     Page* page = current_page();
     const TickType_t frame_started = xTaskGetTickCount();
     if (protection_dialog_active_) {
         if (dialog_dirty_) {
-            // Freeze the underlying page for this modal's lifetime. Both frame
-            // buffers retain the composed view, so later text updates do not
-            // require another page render or a third framebuffer.
+            // 弹窗期间冻结背景；两个帧缓冲保留合成画面，更新文字不需重绘背景。
             if (dialog_needs_background_) page->render(RenderMode::Full);
             UI::short_circuit_dialog(protection_notice_.result == PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT,
                                      protection_notice_.voltage_mV, protection_notice_.threshold_mV);
@@ -196,6 +202,7 @@ void UIManager::loop_once() {
     } else if (full_redraw_ || UiSchedule::due(frame_started, next_frame_tick_)) {
         page->render(full_redraw_ ? RenderMode::Full : RenderMode::Normal);
         if (page->is_overlay_active() && page->id() != PageId::Settings) draw_edit_indicator();
+        UI::output_feedback_overlay(page->id() == PageId::Dashboard);
         ST7789::sync_buffers();
         full_redraw_ = false;
         next_frame_tick_ = UiSchedule::next_frame(frame_started, xTaskGetTickCount(),
@@ -203,6 +210,25 @@ void UIManager::loop_once() {
     }
     const TickType_t finished = xTaskGetTickCount();
     resume_work_tick_ = finished + UiSchedule::recovery(finished - work_started);
+}
+
+void UIManager::update_output_feedback() {
+    const TickType_t now = xTaskGetTickCount();
+    if (main_pressed_ && UiSchedule::due(now, press_expires_tick_)) main_pressed_ = false;
+    const auto view = output_feedback_.update(PowerOutput::snapshot(), now * portTICK_PERIOD_MS, main_pressed_);
+    if (!OutputFeedback::equal(view, UI::output_view())) {
+        const auto& previous = UI::output_view();
+        const bool state_changed = view.state != previous.state || view.pressed != previous.pressed ||
+                                   view.bypassed != previous.bypassed;
+        // 快页面复用正常帧显示动画/倒计时；慢页面才需要额外的 100ms 状态帧。
+        const bool refresh = state_changed || current_page()->refresh_interval_ms() > 100 ||
+                             (view.detail[0] != 0) != (previous.detail[0] != 0);
+        UI::set_output_view(view);
+        if (!protection_dialog_active_ && refresh) full_redraw_ = true;
+    }
+    const uint32_t delay_ms = output_feedback_.next_update_ms();
+    feedback_deadline_active_ = delay_ms != UINT32_MAX;
+    if (feedback_deadline_active_) next_feedback_tick_ = now + UiSchedule::interval(delay_ms);
 }
 
 Page* UIManager::current_page() {
@@ -223,9 +249,10 @@ void UIManager::process_button_events() {
 
 void UIManager::handle_button(ButtonId button, ButtonEvent event) {
     if (protection_dialog_active_) {
-        if (event == ButtonEvent::SHORT_PRESS || event == ButtonEvent::DOUBLE_CLICK ||
-            event == ButtonEvent::LONG_PRESS) {
+        if (event == ButtonEvent::PRESS || event == ButtonEvent::SHORT_PRESS ||
+            event == ButtonEvent::DOUBLE_CLICK || event == ButtonEvent::LONG_PRESS) {
             protection_dialog_active_ = false;
+            main_pressed_ = false;
             xQueueReset(event_queue_);
             full_redraw_ = true;
             ESP_LOGI(TAG, "protection dialog dismissed button=%s", button_to_str(button));
@@ -233,6 +260,21 @@ void UIManager::handle_button(ButtonId button, ButtonEvent event) {
         return;
     }
     Page* page = current_page();
+    // 主按键以消抖后的 PRESS 作为短按动作：立即触发动作并点亮按下反馈，
+    // 不等待双击窗口；RELEASE 只结束反馈，其余手势不参与。
+    if (button == ButtonId::Main) {
+        if (event == ButtonEvent::PRESS) {
+            main_pressed_ = !page->is_overlay_active();
+            press_expires_tick_ = xTaskGetTickCount() + pdMS_TO_TICKS(1100);
+            full_redraw_ = true;
+        } else if (event == ButtonEvent::RELEASE) {
+            if (main_pressed_) press_expires_tick_ = xTaskGetTickCount() + pdMS_TO_TICKS(300);
+            return;
+        } else {
+            main_pressed_ = false;
+            return;
+        }
+    }
     ESP_LOGI(TAG, "button page=%s button=%s event=%s", page->title(), button_to_str(button), event_to_str(event));
 
     // 页面优先处理事件。比如无线页长按进入配网，设置页消费菜单内侧键。
@@ -272,8 +314,8 @@ void UIManager::handle_default_side_button(ButtonEvent event) {
 }
 
 void UIManager::handle_default_main_button(ButtonEvent event) {
-    if (event == ButtonEvent::SHORT_PRESS) {
-        // 主按钮默认保持产品核心行为：切换输出状态。
+    if (event == ButtonEvent::PRESS) {
+        // 主按钮默认保持产品核心行为：按下即切换输出状态。
         PowerOutput::request(PowerOutput::OutputOperation::TOGGLE, TAG);
         full_redraw_ = true;
     }

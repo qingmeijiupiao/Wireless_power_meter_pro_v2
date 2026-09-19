@@ -231,6 +231,7 @@ int main() {
    assert(std::strcmp(formatted,expected[i])==0);
    assert(UI::text_width(formatted,DENGB44_NUM)<=161);
  }
+ UI::OutputView output;output.state=UI::OutputVisual::On;std::strcpy(output.label,"ON");UI::set_output_view(output);
  DashboardPage main;main.render(RenderMode::Full);snapshot("01-main");
  BatteryPage energy;energy.render(RenderMode::Full);snapshot("02-energy");
  for(unsigned i=0;i<61;++i){ticks=i*500;state.voltage_mV=uint16_t(15000+5000*std::sin(i/8.0));CurveHistory::instance().poll(ticks);}
@@ -262,6 +263,23 @@ int main() {
  settings.render(RenderMode::Full);UI::short_circuit_dialog(false,0,200);snapshot("13-short-check-failed");
  assert(UI::text_width("OUTPUT BLOCKED",DENGB16)<=208);
  assert(UI::text_width("Any key: dismiss",DENGB16)<=208);
+ // 所有输出状态使用真实绘图函数生成预览，校验文字能完整放入胶囊。
+ const UI::OutputVisual visuals[]={UI::OutputVisual::Off,UI::OutputVisual::On,UI::OutputVisual::Checking,
+   UI::OutputVisual::Wait,UI::OutputVisual::Locked,UI::OutputVisual::Error};
+ const char* labels[]={"OFF","ON","CHECK","WAIT","LOCK","ERR"};
+ const char* details[]={"","","","WAIT 0.3s","OCP ACTIVE","OUTPUT ERROR"};
+ state.voltage_mV=12345;state.current_uA=1234000;state.board_temperature=3600;ticks=1000;
+ for(unsigned i=0;i<6;++i){
+   output={};output.state=visuals[i];std::strcpy(output.label,labels[i]);std::strcpy(output.detail,details[i]);
+   output.animation=1;UI::set_output_view(output);
+   assert(UI::text_width(labels[i],DENGB16)<=52);
+   assert(UI::text_width(details[i],DENGB16)<=150);
+   main.render(RenderMode::Full);UI::output_feedback_overlay(true);
+   char path[48];snprintf(path,sizeof(path),"output-%u-%s",i,labels[i]);snapshot(path);
+ }
+ output={};output.pressed=true;UI::set_output_view(output);main.render(RenderMode::Full);snapshot("output-6-pressed");
+ output.state=UI::OutputVisual::On;std::strcpy(output.label,"ON");output.pressed=false;output.bypassed=true;
+ UI::set_output_view(output);main.render(RenderMode::Full);snapshot("output-7-bypass");
  puts("PASS: clipping, ASCII fallback, font subset, bounded labels, protection states, settings and short-circuit dialogs");
 }
 '''
@@ -286,6 +304,13 @@ int main() {
     for path in out.glob('*.ppm'):
         Image.open(path).save(path.with_suffix('.png'))
     sheet.save(out / 'ui-preview.png')
+    feedback_sheet = Image.new('RGB', (4 * 504, 2 * 310), '#12151A')
+    feedback_draw = ImageDraw.Draw(feedback_sheet)
+    for i, path in enumerate(sorted(out.glob('output-*.ppm'))):
+        x, y = (i % 4) * 504 + 12, (i // 4) * 310 + 30
+        feedback_sheet.paste(Image.open(path).resize((480, 270), Image.Resampling.NEAREST), (x, y))
+        feedback_draw.text((x, y-20), path.stem, fill='white')
+    feedback_sheet.save(out / 'output-feedback-preview.png')
     print('Preview:', out / 'ui-preview.png')
 
 

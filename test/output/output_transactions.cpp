@@ -25,6 +25,8 @@ void off_and_cool() { assert(off(SOURCE)==R::OK); Host::cool(); }
 int main() {
     assert(on(SOURCE)==R::FAIL_NOT_INIT);
     assert(init(19)==ESP_OK);
+    // 通知回调可读取快照，证明唤醒不在事务锁内执行。
+    set_event_notifier([]{ (void)snapshot(); });
     assert(on(SOURCE)==R::OK);
     assert(Host::samples==3 && Host::enables==1 && !Host::pulse);
     const int initial_pulses=Host::pulses;
@@ -33,6 +35,9 @@ int main() {
     assert(test_short_circuit(measured,SOURCE)==R::FAIL_BUSY);
     assert(off(SOURCE)==R::OK);
     assert(on(SOURCE)==R::FAIL_COOLDOWN_ACTIVE);
+    auto cooldown_status=snapshot();
+    assert(cooldown_status.result==R::FAIL_COOLDOWN_ACTIVE && !cooldown_status.output_on);
+    assert(cooldown_status.cooldown_remaining_ms>0 && cooldown_status.cooldown_remaining_ms<=500);
     Host::cool();
 
     Host::voltage=5;
@@ -48,11 +53,12 @@ int main() {
     Host::voltage=200;
     Host::voltage_sequence={200,200,199,200,200,200};
     assert(test_short_circuit(measured,SOURCE)==R::OK && measured.sample_count==6);
-    assert(measured.voltage_mV==200);
-    // Transient ADC errors are retried and interrupt the consecutive-good run.
+    assert(measured.voltage_mV==200 && measured.min_voltage_mV==199);
+    // Transient ADC errors are retried, counted, and must not break the good run.
     Host::voltage_sequence={200,200,200,200,200};
     Host::adc_error_sequence={ESP_OK,ESP_OK,ESP_FAIL,ESP_OK,ESP_OK,ESP_OK};
-    assert(test_short_circuit(measured,SOURCE)==R::OK && measured.sample_count==5);
+    assert(test_short_circuit(measured,SOURCE)==R::OK && measured.sample_count==3 && measured.invalid_count==1);
+    assert(measured.min_voltage_mV==200);
     // A negative ADC result is also invalid and retried before reporting failure.
     Host::voltage_sequence={-1,200,200,200};
     assert(test_short_circuit(measured,SOURCE)==R::OK && measured.sample_count==3);
@@ -105,11 +111,17 @@ int main() {
         Host::gate_on();
         auto future=start();
         Host::gate_wait();
+        const auto checking=snapshot();
+        assert(checking.checking && !checking.output_on && checking.result==R::PENDING);
         assert(request(O::ON,SOURCE)==R::FAIL_BUSY);
+        assert(snapshot().request_id==checking.request_id && snapshot().checking);
         assert(test_short_circuit(measured,SOURCE)==R::FAIL_BUSY);
         assert(request(cancel,SOURCE)==R::OK);
+        const auto cancelled_status=snapshot();
+        assert(!cancelled_status.checking && !cancelled_status.output_on);
         Host::gate_release();
         assert(finish(future)==R::FAIL_CANCELLED);
+        assert(snapshot().request_id==cancelled_status.request_id && snapshot().result==R::OK);
         assert(!get_state() && !Host::pulse);
     }
     // Existing protection callbacks cancel even while the output is still OFF.
@@ -159,6 +171,8 @@ int main() {
     auto timeout=std::async(std::launch::async,[]{return on(SOURCE);});
     Host::gate_wait();
     assert(finish(timeout)==R::FAIL_TIMEOUT);
+    assert(!snapshot().checking && snapshot().result==R::FAIL_TIMEOUT);
+    assert(take_failure_notice(notice) && notice.result==R::FAIL_TIMEOUT);
     assert(request(O::ON,SOURCE)==R::FAIL_BUSY);
     Host::gate_release();
     R retry=R::FAIL_BUSY;
@@ -169,6 +183,7 @@ int main() {
         retry=test_short_circuit(measured,SOURCE);
     }
     assert(retry==R::OK && !get_state() && !Host::pulse);
+    assert(!take_failure_notice(notice)); // 超时弹窗已消费，清理完成不再重弹。
 
     // Async requests also have a deadline if the worker stalls.
     Host::gate_on();

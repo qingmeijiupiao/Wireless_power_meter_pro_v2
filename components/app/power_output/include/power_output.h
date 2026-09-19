@@ -43,8 +43,8 @@ enum class OutputOperation : uint8_t {
  * @brief 输出策略基类，所有开关条件检查策略的接口
  * @note  继承此类实现自定义开启策略，通过 add_policy() 注册到策略链中，
  *        开启前依次调用 check()，全部通过才执行；关闭不受策略阻断。
-     *        操作完成后调用 on_state_applied() 通知策略更新内部状态。
-     *        策略在事务锁内执行，必须快速返回，不得重入输出服务。
+ *        操作完成后调用 on_state_applied() 通知策略更新内部状态。
+ *        策略在事务锁内执行，必须快速返回，不得重入输出服务。
  */
 class OutputPolicy {
   public:
@@ -82,13 +82,31 @@ OutputResult request(OutputOperation op, const char* source, CompletionCallback 
 constexpr uint32_t REQUEST_TIMEOUT_MS = 750;
 const char* result_to_string(OutputResult result);
 
+/** 非消费式运行快照，可由屏幕、通信等多个观察者独立读取。
+ * request_id 标识最近一次有效事务；忙拒绝不覆盖正在执行的事务。
+ * checking 仅表示事务未结束，output_on 始终是 GPIO 提交后的真实状态。
+ * protect_mask 的 bit0..3 分别为 OTP/OVP/UVP/OCP，与持久化位域无关。
+ */
+struct Status {
+    uint32_t request_id = 0;
+    OutputResult result = OutputResult::OK;
+    bool initialized = false;
+    bool checking = false;
+    bool output_on = false;
+    bool bypassed = false;
+    uint8_t protect_mask = 0;
+    uint32_t cooldown_remaining_ms = 0;
+};
+/** 任务上下文调用，短时获取事务锁；不执行检测，不消费事件。 */
+Status snapshot();
+
 /** 手动检测也经过输出仲裁，输出开启或已有事务时拒绝；不自动开启输出。 */
 OutputResult test_short_circuit(ShortCircuitDetect::Result& result, const char* source);
 
 /** 单槽保留最近一次失败，供屏幕任务消费；重复失败合并，启动期间不会因 UI 未就绪丢失。 */
 struct FailureNotice {
     OutputResult result = OutputResult::OK;
-    uint16_t voltage_mV = 0;
+    uint16_t voltage_mV = 0;    /**< 短路失败时为窗口内最低有效采样电压。 */
     uint16_t threshold_mV = 0;
     esp_err_t error = ESP_OK;
 };
@@ -114,7 +132,7 @@ esp_err_t deinit();
 
 /**
  * @brief  同步开启输出，等待开启前检测及最终结果；source 必须为静态字符串
- * @return OK 成功，FAIL_NOT_INIT 未初始化，FAIL_PROTECT_ACTIVE 保护激活，FAIL_COOLDOWN_ACTIVE 冷却中
+ * @return OK 表示已开启；失败原因见 OutputResult（保护、冷却、检测、取消、超时、GPIO 等），不会返回 PENDING。
  */
 OutputResult on(const char* source);
 
@@ -126,7 +144,7 @@ OutputResult off(const char* source);
 
 /**
  * @brief  切换输出状态（开->关，关->开）
- * @return OK 成功，FAIL_NOT_INIT 未初始化，FAIL_PROTECT_ACTIVE 保护激活（切换到ON时），FAIL_COOLDOWN_ACTIVE 冷却中
+ * @return 开启时等待最终结果，关闭立即返回；完整失败原因见 OutputResult，不会返回 PENDING。
  */
 OutputResult toggle(const char* source);
 

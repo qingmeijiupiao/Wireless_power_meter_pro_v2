@@ -14,6 +14,8 @@ bool take_failure_notice(FailureNotice& notice){
     notice_pending=false;notice=next_notice;return true;
 }
 bool get_state(){return output_on;}
+Status test_status;
+Status snapshot(){auto s=test_status;s.initialized=true;s.output_on=output_on;return s;}
 OutputResult request(OutputOperation,const char*,CompletionCallback){++UiHost::requests;return OutputResult::PENDING;}
 void fail(){notice_pending=true;if(event_notifier)event_notifier();}
 }
@@ -45,7 +47,7 @@ int main(){
     current_task=&screen;
     auto& ui=UIManager::instance();assert(ui.init());
     for(auto button:{ButtonId::Main,ButtonId::Side,ButtonId::Previous}){
-        for(auto event:{ButtonEvent::SHORT_PRESS,ButtonEvent::DOUBLE_CLICK,ButtonEvent::LONG_PRESS}){
+        for(auto event:{ButtonEvent::PRESS,ButtonEvent::SHORT_PRESS,ButtonEvent::DOUBLE_CLICK,ButtonEvent::LONG_PRESS}){
             PowerOutput::fail();ui.loop_once();assert(UiHost::dialog);
             const int requests=UiHost::requests,events=UiHost::page_events;
             assert(ui.post_button_event(button,event));
@@ -53,7 +55,7 @@ int main(){
             assert(!UiHost::dialog && UiHost::requests==requests && UiHost::page_events==events);
         }
     }
-    assert(ui.post_button_event(ButtonId::Main,ButtonEvent::SHORT_PRESS));
+    assert(ui.post_button_event(ButtonId::Main,ButtonEvent::PRESS));
     PowerOutput::fail();ui.loop_once();
     assert(!UiHost::dialog && UiHost::requests==0);
 
@@ -82,7 +84,7 @@ int main(){
         assert(timeout>7);
         Host::notification_wait_hook={};
         Host::ui_ticks+=7;
-        assert(ui.post_button_event(ButtonId::Main,ButtonEvent::SHORT_PRESS));
+        assert(ui.post_button_event(ButtonId::Main,ButtonEvent::PRESS));
     };
     ui.loop_once();
     assert(UiHost::requests==requests+1 && Host::ui_ticks-before<20);
@@ -134,5 +136,63 @@ int main(){
     assert(UiSchedule::remaining(UINT32_MAX-9,5)==15);
     assert(UiSchedule::due(7,5));
     assert(UiSchedule::recovery(90)==30);
+    // 主按键按下即提交输出切换，不等待双击窗口；释放只结束高亮。
+    UiHost::render_cost_ms=2;
+    const int before_press=UiHost::requests;
+    assert(ui.post_button_event(ButtonId::Main,ButtonEvent::PRESS));
+    ui.loop_once();assert(UI::output_view().pressed && UiHost::requests==before_press+1);
+    assert(ui.post_button_event(ButtonId::Main,ButtonEvent::RELEASE));
+    ui.loop_once();assert(UI::output_view().pressed && UiHost::requests==before_press+1);
+    // 双击/长按事件不再触发主按键动作。
+    assert(ui.post_button_event(ButtonId::Main,ButtonEvent::DOUBLE_CLICK));
+    ui.loop_once();assert(!UI::output_view().pressed && UiHost::requests==before_press+1);
+
+    PowerOutput::test_status.request_id=1;
+    PowerOutput::test_status.checking=true;
+    PowerOutput::test_status.result=PowerOutput::OutputResult::PENDING;
+    PowerOutput::event_notifier();ui.loop_once();
+    assert(UI::output_view().state==UI::OutputVisual::Checking);
+    const auto check_started=Host::ui_ticks;
+    ui.loop_once();assert(Host::ui_ticks-check_started<=102);
+    assert(UI::output_view().state==UI::OutputVisual::Checking);
+    assert(ui.post_button_event(ButtonId::Side,ButtonEvent::SHORT_PRESS));
+    ui.loop_once();assert(UI::output_view().state==UI::OutputVisual::Checking);
+    PowerOutput::test_status.checking=false;
+    PowerOutput::test_status.result=PowerOutput::OutputResult::OK;
+    PowerOutput::output_on=true;
+    PowerOutput::event_notifier();ui.loop_once();
+    assert(UI::output_view().state==UI::OutputVisual::On);
+
+    // 冷却到期只能回到 OFF；纯模型无输出调用，提示过期和计时回绕可验证。
+    OutputFeedback feedback;
+    PowerOutput::Status status;
+    status.initialized=true;status.request_id=1;
+    status.result=PowerOutput::OutputResult::FAIL_COOLDOWN_ACTIVE;
+    status.cooldown_remaining_ms=350;
+    auto view=feedback.update(status,UINT32_MAX-100,false);
+    assert(view.state==UI::OutputVisual::Wait && std::strcmp(view.detail,"WAIT 0.4s")==0);
+    status.cooldown_remaining_ms=0;
+    view=feedback.update(status,300,false);
+    assert(view.state==UI::OutputVisual::Off && !view.detail[0]);
+    status.request_id=2;status.result=PowerOutput::OutputResult::FAIL_PROTECT_ACTIVE;
+    status.protect_mask=8;
+    view=feedback.update(status,400,false);
+    assert(view.state==UI::OutputVisual::Locked && std::strcmp(view.detail,"OCP ACTIVE")==0);
+    view=feedback.update(status,2500,false);
+    assert(view.state==UI::OutputVisual::Locked && !view.detail[0]);
+    status.request_id=3;status.result=PowerOutput::OutputResult::OK;
+    status.bypassed=true;status.output_on=true;
+    view=feedback.update(status,2600,false);
+    assert(view.state==UI::OutputVisual::On && view.bypassed && !view.detail[0]);
+    status.request_id=4;status.result=PowerOutput::OutputResult::FAIL_GPIO;
+    view=feedback.update(status,2700,false);
+    assert(view.state==UI::OutputVisual::On && std::strcmp(view.detail,"OUTPUT ERROR")==0);
+    // 普通关闭后冷却计时仍在，但必须立即显示 OFF，不得提示 WAIT。
+    status.request_id=5;status.result=PowerOutput::OutputResult::OK;
+    status.output_on=false;status.bypassed=false;status.protect_mask=0;
+    status.cooldown_remaining_ms=500;
+    view=feedback.update(status,2800,false);
+    assert(view.state==UI::OutputVisual::Off && !view.detail[0]);
+    assert(UiHost::requests==before_press+1);
     puts("PASS: real UIManager: per-page deadlines, early event wake, static modal, history, modal keys, overload budget, tick wrap");
 }

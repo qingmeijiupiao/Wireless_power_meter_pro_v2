@@ -7,7 +7,7 @@
 - **策略链架构**：开关条件以策略对象形式注册，按顺序依次检查，任一策略拒绝即阻止操作
 - **可扩展**：继承 `OutputPolicy` 实现自定义策略，调用 `add_policy()` 即可加入检查链
 - **保护联动**：内置 `ProtectPolicy`，保护状态激活时自动阻止开启输出，保护触发时强制关闭
-- **冷却延时**：内置 `CooldownPolicy`，ON/OFF 冷却时间独立设置，防止快速反复切换
+- **冷却延时**：内置 `CooldownPolicy`，关闭后再次开启需等待 500ms；关闭不受冷却阻断
 - **固定请求容量**：只保留一个检测/开启事务，不积压开启请求；任务和信号量初始化分配，`std::function` 捕获可能分配内存
 - **状态回调**：输出状态变更时通知所有注册的回调函数
 
@@ -24,8 +24,8 @@ flowchart LR
     R -->|通过| F["apply_state()"]
     R -->|拒绝| E
     D -->|FAIL| E
-    F --> G["notify_change()（apply_state 内）"]
-    G --> H["notify_policies_applied()"]
+    F --> G["锁内更新 GlobalState 和策略计时"]
+    G --> H["锁外通知观察者与完成回调"]
 ```
 
 ```mermaid
@@ -33,7 +33,7 @@ sequenceDiagram
     participant Caller as Button/CAN/Shell
     participant PO as PowerOutput
     participant Policy as OutputPolicy 链
-    participant GPIO as CppGpioDriver
+    participant GPIO as 输出 GPIO
     participant GS as GlobalState
     participant CB as 输出状态回调
 
@@ -45,9 +45,9 @@ sequenceDiagram
     else 全部通过
         PO->>PO: 工作任务检测、清理测试激励并最终复核
         PO->>GPIO: set(new_state)
-        GPIO->>GS: on_change 更新 flags.output_enabled
-        PO->>CB: notify_change(new_state)
-        PO->>Policy: on_state_applied(op, new_state)
+        PO->>GS: GPIO 成功后更新 flags.output_enabled
+        PO->>Policy: 锁内 on_state_applied(op, new_state)
+        PO->>CB: 锁外 notify_change(new_state)
         PO-->>Caller: OK
     end
 ```
@@ -261,3 +261,13 @@ PowerOutput::add_policy(&max_on_policy);
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
+
+## 输出交互快照与事务日志（2026-09-19）
+
+`snapshot()` 是非消费式短时加锁接口，包含请求编号、结果、检测中标志、实际输出、保护旁路、四通道阻断位和剩余冷却毫秒。接受请求及所有普通输出请求完成时，在事务锁外唤醒观察者。UI 不再根据 ON/OFF 推断是否正在检测。
+
+忙拒绝不覆盖正在执行的请求；OFF 取消后发布新请求状态，旧工作任务的完成结果不能覆盖它。新的开启请求或成功关闭会清理未消费的旧失败通知。同步超时通知只发布一次，工作任务迟到完成清理不会重新弹窗。诊断检测不修改普通输出交互快照。
+
+每个请求由仲裁层记录一次摘要：`id/src/op/前后状态/result/ms/test/test_ms/mv/vmin/min/n/bad/err/bypass/wait/protect`。`ms` 为请求至记录时的总耗时，`test_ms` 为检测调用耗时；`mv/vmin` 为最后一次与窗口内最低有效采样，`n/bad` 为有效/无效采样总数。失败弹窗展示 `vmin`，避免最后一次读数回升后看起来与短路判定矛盾。输出真实变化使用 DEVICE_STATE_I；普通拒绝/取消使用 DEVICE_EVENT_I；幂等成功仅 INFO。短路、检测故障、超时、GPIO 错误使用 WARN，沿用 Hook 的文本加快照机制。策略拒绝不再重复 WARN，ADC 瞬时重试降为 DEBUG 并汇总到最终结果。底层激励清理错误仍保留 ERROR，以免 RAII 退出故障静默。
+
+这里仅收敛输出事务日志；通信轮询日志、全局重复故障限频和故障瞬间快照协议的优化另行开展。

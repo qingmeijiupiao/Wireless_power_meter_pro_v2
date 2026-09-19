@@ -30,7 +30,7 @@ sequenceDiagram
     end
 ```
 
-设置业务分为显示、连接和系统诊断三类。所有修改通过对应服务公开接口完成；OTA 使用短按进入确认、长按确认升级的二阶段操作，避免误触。
+设置业务分为显示、连接和系统诊断三类。所有修改通过对应服务公开接口完成；主按键以按下边沿触发，OTA 使用两次按下确认升级的二阶段操作，避免误触。
 
 ## 设置项
 
@@ -48,12 +48,12 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Check
     Check --> Available: found newer version
-    Available --> Confirm: main short
-    Confirm --> Download: main long
+    Available --> Confirm: main press
+    Confirm --> Download: main press
     Confirm --> Menu: side short
     Download --> Restart: verify and activate
     Check --> Retry: failed or up-to-date
-    Retry --> Check: main short
+    Retry --> Check: main press
 ```
 
 弹窗固定使用四行、每行 27 个可见字符的缓冲区，构建内容时必须使用有长度限制的

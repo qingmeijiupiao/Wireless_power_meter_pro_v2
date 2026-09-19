@@ -1,4 +1,4 @@
-/** Unified output transactions. Only this module may enable the main output. */
+/** 统一输出事务；所有主输出开启必须经过本模块。 */
 #include "power_output.h"
 #include "protect_policy.hpp"
 #include "cooldown_policy.hpp"
@@ -13,6 +13,8 @@
 #include <array>
 #include <atomic>
 #include <utility>
+#include <cstdio>
+#include <cinttypes>
 
 namespace PowerOutput {
 namespace {
@@ -32,8 +34,8 @@ ProtectPolicy protect_policy;
 CooldownPolicy cooldown_policy(OUTPUT_ON_COOLDOWN_MS, OUTPUT_OFF_COOLDOWN_MS);
 bool protect_callback_registered = false;
 
-// One owned slot: no queued ON can unexpectedly execute after OFF. A timed-out
-// waiter detaches; the worker retains the slot until the pulse has been cleaned up.
+// 只保留一个开启事务，避免 OFF 后遗留排队开启。同步调用超时后，
+// 工作任务继续持有事务槽，直到测试激励清理完成。
 struct PendingRequest {
     bool used = false;
     bool synchronous = false;
@@ -41,12 +43,19 @@ struct PendingRequest {
     bool cancelled = false;
     bool completed = false;
     int64_t deadline_us = 0;
+    int64_t started_us = 0;
+    uint32_t request_id = 0;
+    OutputOperation operation = OutputOperation::ON;
+    bool previous_state = false;
+    bool timed_out = false;
     const char* source = "unknown";
     CompletionCallback completion;
     OutputResult result = OutputResult::OK;
     ShortCircuitDetect::Result measurement{};
 };
 PendingRequest pending;
+Status latest_status;
+std::atomic<uint32_t> request_sequence{0};
 FailureNotice failure_notice;
 bool failure_pending = false;
 std::atomic<void (*)()> event_notifier{nullptr};
@@ -73,7 +82,7 @@ void notify_change(bool state) {
     for (size_t i = 0; i < count; ++i) callbacks[i](state);
 }
 
-// Caller owns transaction_mutex. State is published only after GPIO success.
+// 调用方持有事务锁；GPIO 成功后才发布真实输出状态。
 OutputResult apply_state(bool state) {
     if (gpio_set_level(output_gpio, state ? 1 : 0) != ESP_OK) return OutputResult::FAIL_GPIO;
     update_global_state([state](GlobalState& global) { global.flags.output_enabled = state; });
@@ -91,11 +100,43 @@ OutputResult check_policies() {
     return OutputResult::OK;
 }
 
-void log_result(const char* source, OutputResult result, bool state) {
-    if (result == OutputResult::OK) {
-        DEVICE_STATE_I(TAG, "output: source=%s result=ok state=%u", source, state ? 1U : 0U);
+// 只在事务锁内发布；较早请求的取消结果不能覆盖后续 OFF/新请求。
+void publish_status(uint32_t id, OutputResult result) {
+    latest_status.request_id = id;
+    latest_status.result = result;
+    latest_status.checking = result == OutputResult::PENDING;
+}
+
+uint8_t protection_mask() {
+    const auto state = get_global_state().protect_states.states_bit;
+    return (state.temperature_protect_state == PROTECT_STATE_PROTECT ? 1 : 0) |
+           (state.high_voltage_protect_state == PROTECT_STATE_PROTECT ? 2 : 0) |
+           (state.low_voltage_protect_state == PROTECT_STATE_PROTECT ? 4 : 0) |
+           (state.current_protect_state == PROTECT_STATE_PROTECT ? 8 : 0);
+}
+
+// 每个请求只在仲裁层记录一次摘要；幂等操作和正常拒绝不追加状态快照。
+void log_result(const char* source, uint32_t id, OutputOperation operation, OutputResult result,
+                bool before, bool state, int64_t started_us, const ShortCircuitDetect::Result& test,
+                esp_err_t error, bool tested, bool bypassed, uint32_t cooldown_ms, uint8_t mask) {
+    char line[256];
+    const char* op = operation == OutputOperation::ON ? "on" : operation == OutputOperation::OFF ? "off" : "toggle";
+    snprintf(line, sizeof(line),
+             "output id=%" PRIu32 " src=%s op=%s %u>%u result=%s ms=%" PRId64
+             " test=%u test_ms=%" PRIu32 " mv=%u vmin=%u min=%u n=%u bad=%u err=%s bypass=%u wait=%" PRIu32 " protect=%u",
+             id, source, op, before, state, result_to_string(result),
+             (esp_timer_get_time() - started_us) / 1000, tested, test.duration_ms, test.voltage_mV,
+             test.min_voltage_mV, test.threshold_mV,
+             test.sample_count, test.invalid_count, esp_err_to_name(result == OutputResult::FAIL_GPIO ? ESP_FAIL : error), bypassed, cooldown_ms, mask);
+    if (result == OutputResult::FAIL_SHORT_CIRCUIT || result == OutputResult::FAIL_SHORT_DETECT ||
+        result == OutputResult::FAIL_TIMEOUT || result == OutputResult::FAIL_GPIO) {
+        ESP_LOGW(TAG, "%s", line);
+    } else if (before != state) {
+        DEVICE_STATE_I(TAG, "%s", line);
+    } else if (result != OutputResult::OK) {
+        DEVICE_EVENT_I(TAG, "%s", line);
     } else {
-        ESP_LOGW(TAG, "output: source=%s result=%s state=%u", source, result_to_string(result), state ? 1U : 0U);
+        ESP_LOGI(TAG, "%s", line);
     }
 }
 
@@ -124,10 +165,14 @@ void worker(void*) {
         bool state = false;
         CompletionCallback completion;
         const char* source;
+        uint32_t id = 0, cooldown_ms = 0;
+        uint8_t mask = 0;
+        int64_t started_us = 0;
+        OutputOperation operation = OutputOperation::ON;
+        bool before = false, bypassed = false;
         for (;;) {
             if (result == OutputResult::OK) {
-                // Cleanup also runs for bypassed requests: a failed pulse shutdown
-                // must never allow main power and test excitation to overlap.
+                // 旁路也必须清理激励，避免测试电源与主输出同时开启。
                 if (should_test) {
                     error = ShortCircuitDetect::test(measurement, [](void*) {
                         Lock lock;
@@ -143,15 +188,15 @@ void worker(void*) {
 
             Lock lock;
             ProtectOutputGuard protection_guard;
-            if (pending.cancelled || !initialized) result = OutputResult::FAIL_CANCELLED;
+            if (pending.timed_out) result = OutputResult::FAIL_TIMEOUT;
+            else if (pending.cancelled || !initialized) result = OutputResult::FAIL_CANCELLED;
             else if (esp_timer_get_time() >= pending.deadline_us) result = OutputResult::FAIL_TIMEOUT;
-            // Bypass enabled during a successful measurement also skips its
-            // short-circuit verdict. Hardware cleanup errors still block ON.
+            // 检测中启用旁路可跳过短路判定，但不能忽略硬件清理失败。
             if (!diagnostic && result == OutputResult::FAIL_SHORT_CIRCUIT && protect_is_bypassed())
                 result = OutputResult::OK;
             if (!diagnostic && result == OutputResult::OK) {
                 result = check_policies();
-                // Bypass may have been disabled while the worker was running.
+                // 工作期间关闭旁路时，提交前必须补做检测。
                 if (result == OutputResult::OK && !tested && !protect_is_bypassed()) {
                     should_test = true;
                     continue;
@@ -162,15 +207,22 @@ void worker(void*) {
                 }
             }
             source = pending.source;
+            id = pending.request_id;
+            started_us = pending.started_us;
+            operation = pending.operation;
+            before = pending.previous_state;
+            bypassed = protect_is_bypassed();
+            cooldown_ms = cooldown_policy.remaining_ms();
+            mask = protection_mask();
+            if (!diagnostic && latest_status.request_id == id) publish_status(id, result);
             state = get_state();
-            if (!diagnostic && (result == OutputResult::FAIL_SHORT_CIRCUIT ||
+            if (!diagnostic && !pending.timed_out && latest_status.request_id == id && (result == OutputResult::FAIL_SHORT_CIRCUIT ||
                                 result == OutputResult::FAIL_SHORT_DETECT || result == OutputResult::FAIL_TIMEOUT)) {
-                failure_notice = {result, measurement.voltage_mV, measurement.threshold_mV, error};
+                // 弹窗展示窗口内最低有效电压，与“低于门限即短路”的判定一致。
+                failure_notice = {result, measurement.min_voltage_mV, measurement.threshold_mV, error};
                 failure_pending = true;
                 published_failure = true;
-                ESP_LOGW(TAG, "short preflight source=%s result=%s voltage=%u threshold=%u error=%s",
-                         source, result_to_string(result), measurement.voltage_mV, measurement.threshold_mV,
-                         esp_err_to_name(error));
+
             }
             if (pending.synchronous) {
                 pending.result = result;
@@ -183,9 +235,10 @@ void worker(void*) {
             }
             break;
         }
-        // No user callbacks under the transaction lock.
-        if (published_failure) notify_event();
-        log_result(source, result, state);
+        // 业务回调必须在事务锁外执行。
+        if (!diagnostic || published_failure) notify_event();
+        log_result(source, id, operation, result, before, state, started_us, measurement,
+                   error, tested, bypassed, cooldown_ms, mask);
         if (changed) notify_change(true);
         if (completion) completion(result, state);
     }
@@ -194,12 +247,19 @@ void worker(void*) {
 OutputResult submit(OutputOperation op, const char* source, CompletionCallback completion,
                     bool synchronous, bool diagnostic) {
     source = source ? source : "unknown";
+    const uint32_t id = ++request_sequence;
+    const int64_t started_us = esp_timer_get_time();
+    uint32_t cooldown_ms = 0;
+    uint8_t mask = 0;
+    bool bypassed = false;
     OutputResult result = OutputResult::FAIL_NOT_INIT;
     bool changed = false;
     bool state = get_state();
+    bool before = state;
     if (initialized.load()) {
         Lock lock;
         state = get_state();
+        before = state;
         if (!initialized) {
             result = OutputResult::FAIL_NOT_INIT;
         } else if (diagnostic && (state || pending.used)) {
@@ -223,15 +283,34 @@ OutputResult submit(OutputOperation op, const char* source, CompletionCallback c
                 pending.synchronous = synchronous;
                 pending.diagnostic = diagnostic;
                 pending.source = source;
+                pending.request_id = id;
+                pending.started_us = started_us;
+                pending.operation = op;
+                pending.previous_state = state;
                 pending.deadline_us = esp_timer_get_time() + static_cast<int64_t>(REQUEST_TIMEOUT_MS) * 1000;
                 pending.completion = std::move(completion);
+                if (!diagnostic) {
+                    failure_pending = false;
+                    publish_status(id, OutputResult::PENDING);
+                }
                 xTaskNotifyGive(worker_task);
-                return OutputResult::PENDING;
+                result = OutputResult::PENDING;
             }
         }
+        cooldown_ms = cooldown_policy.remaining_ms();
+        bypassed = protect_is_bypassed();
+        mask = protection_mask();
+        if (!diagnostic && result != OutputResult::PENDING &&
+            !(result == OutputResult::FAIL_BUSY && latest_status.checking)) {
+            publish_status(id, result);
+            if (result == OutputResult::OK) failure_pending = false;
+        }
     }
+    // 唤醒/业务回调和日志全部在事务锁外执行。
+    if (!diagnostic) notify_event();
+    if (result == OutputResult::PENDING) return result;
     if (changed) notify_change(false);
-    log_result(source, result, state);
+    log_result(source, id, op, result, before, state, started_us, {}, ESP_OK, false, bypassed, cooldown_ms, mask);
     if (completion) completion(result, state);
     return result;
 }
@@ -247,10 +326,12 @@ OutputResult wait_result(ShortCircuitDetect::Result* measurement = nullptr) {
             pending = {};
             return result;
         }
-        // Worker owns storage: a timeout never leaves a pointer to the caller stack.
+        // 事务数据由工作任务持有，超时不会留下指向调用者栈的指针。
         pending.cancelled = true;
+        pending.timed_out = true;
         pending.synchronous = false;
-        if (!pending.diagnostic) {
+        if (!pending.diagnostic && latest_status.request_id == pending.request_id) {
+            publish_status(pending.request_id, OutputResult::FAIL_TIMEOUT);
             failure_notice = {OutputResult::FAIL_TIMEOUT, 0, 0, ESP_ERR_TIMEOUT};
             failure_pending = true;
             published_failure = true;
@@ -285,8 +366,7 @@ const char* result_to_string(OutputResult result) {
 }
 
 esp_err_t init(gpio_num_t gpio) {
-    // Lifecycle initialization is called from app_main. Retain resources on
-    // deinit so an in-flight worker can finish pulse cleanup safely.
+    // app_main 负责初始化；反初始化保留任务资源，供在途检测清理激励。
     if (!transaction_mutex) transaction_mutex = xSemaphoreCreateMutex();
     if (!completed_signal) completed_signal = xSemaphoreCreateBinary();
     if (!transaction_mutex || !completed_signal) return ESP_ERR_NO_MEM;
@@ -304,6 +384,8 @@ esp_err_t init(gpio_num_t gpio) {
     if (error != ESP_OK) return error;
     update_global_state([](GlobalState& state) { state.flags.output_enabled = false; });
     cooldown_policy.reset();
+    latest_status = {};
+    failure_pending = false;
     policy_count = 0;
     policies[policy_count++] = &protect_policy;
     policies[policy_count++] = &cooldown_policy;
@@ -347,6 +429,19 @@ OutputResult test_short_circuit(ShortCircuitDetect::Result& result, const char* 
     if (worker_task && xTaskGetCurrentTaskHandle() == worker_task) return OutputResult::FAIL_BUSY;
     const auto submitted = submit(OutputOperation::ON, source, {}, true, true);
     return submitted == OutputResult::PENDING ? wait_result(&result) : submitted;
+}
+
+Status snapshot() {
+    if (!initialized.load()) return {};
+    Lock lock;
+    ProtectOutputGuard protection_guard;
+    Status status = latest_status;
+    status.initialized = initialized.load();
+    status.output_on = get_state();
+    status.bypassed = protect_is_bypassed();
+    status.protect_mask = protection_mask();
+    status.cooldown_remaining_ms = cooldown_policy.remaining_ms();
+    return status;
 }
 
 bool take_failure_notice(FailureNotice& notice) {

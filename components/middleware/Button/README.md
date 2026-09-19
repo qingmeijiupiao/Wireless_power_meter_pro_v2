@@ -157,3 +157,8 @@ btn.setup(GPIO_NUM_0);
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
+
+
+## 即时按下反馈
+
+`PRESS` 追加在原枚举末尾（RELEASE 之后），不改变旧事件编号。按下持续时间越过消抖阈值时仅发送一次，继续沿用同一事件队列和任务回调。PRESS 只表示按下，不表示短按成立。需要按下即响应的消费者可把 PRESS 作为动作事件并忽略后续手势；不使用的消费者仍按原有 SHORT_PRESS 处理。库本身不提供关闭双击窗口的配置，原有 RELEASE、250ms 双击窗口、长按和超长按判定保持不变。

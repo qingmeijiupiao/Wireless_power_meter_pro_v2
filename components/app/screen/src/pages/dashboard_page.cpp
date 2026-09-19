@@ -12,28 +12,13 @@
 #include <cmath>
 #include <cstdio>
 
-#include "blackbox.h"
-#include "diagnostic_log.h"
 #include "DENGB16.h"
-#include "DENGB20.h"
 #include "DENGB44_NUM.h"
-#include "current_calibration.h"
-#include "energy_meter.h"
-#include "espnow_link.h"
-#include "espnow_service.h"
-#include "esp_log.h"
-#include "blackbox_service.h"
-#include "can_callback.h"
-#include "can_resistor.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "global_state.h"
-#include "HXC_NVS.h"
 #include "st7789.h"
 #include "widgets/ui_chrome.h"
-#include "ota_service.h"
-#include "wifi_manager.h"
-#include "wifi_service.h"
 
 namespace SCREEN {
 namespace {
@@ -74,7 +59,7 @@ uint32_t DashboardPage::refresh_interval_ms() const {
  */
 void DashboardPage::render(RenderMode mode) {
     (void)mode;
-        ST7789::fill_screen(ST7789::BLACK);
+    ST7789::fill_screen(ST7789::BLACK);
     const auto state = get_global_state();
     const float voltage = state.voltage_mV / 1000.0f;
     const float current = std::abs(state.current_uA / 1000000.0f);
@@ -92,28 +77,27 @@ void DashboardPage::render(RenderMode mode) {
     const auto &protection = state.protect_states.states_bit;
     draw_protect_tag(174, 29, "OTP", protection.temperature_protect_state);
     ProtectState_t voltage_state = protection.high_voltage_protect_state;
-        const char*    voltage_text  = "OVP";
-        if (voltage_state == PROTECT_STATE_NORMAL) {
+    const char* voltage_text = "OVP";
+    if (voltage_state == PROTECT_STATE_NORMAL) {
         voltage_state = protection.low_voltage_protect_state;
-            voltage_text  = "UVP";
+        voltage_text = "UVP";
     }
     draw_protect_tag(174, 55, voltage_text, voltage_state);
     draw_protect_tag(174, 81, "OCP", protection.current_protect_state);
 
     ST7789::fill_rect(6, 107, 228, 1, UI::GRID);
-    UI::badge(6, 113, 24, 16, "W", ST7789::BLACK, UI::POWER, DENGB16);
-    UI::format_fixed_digits(line, sizeof(line), voltage * current, "", 5, 3, false);
-    UI::text(34, 114, 66, 16, line, UI::POWER, ST7789::BLACK, DENGB16);
-    UI::badge(108, 113, 20, 16, "T", UI::MUTED, UI::PANEL, DENGB16);
+    // 底栏为输出状态保留 72px；数值继续保留五位有效显示规则。
+    UI::format_fixed_digits(line, sizeof(line), voltage * current, "W", 5, 3, false);
+    UI::text(6, 113, 84, 18, line, UI::POWER);
     const float temperature = state.board_temperature / 100.0f;
-        if (temperature >= 100.0f || temperature < 0.0f) {
+    if (temperature >= 100.0f || temperature < 0.0f) {
         snprintf(line, sizeof(line), "%dC", static_cast<int>(temperature));
-        } else {
+    } else {
         snprintf(line, sizeof(line), "%.1fC", temperature);
     }
-    UI::text(132, 114, 52, 16, line, UI::CURRENT, ST7789::BLACK, DENGB16);
-    const bool enabled = state.flags.output_enabled;
-    UI::badge(190, 113, 44, 16, enabled ? "ON" : "OFF", ST7789::BLACK, enabled ? UI::CURRENT : UI::VOLTAGE, DENGB16);
+    UI::badge(94, 113, 18, 16, "T", UI::MUTED, UI::PANEL, DENGB16);
+    UI::text(114, 113, 44, 18, line, UI::CURRENT);
+    UI::output_capsule();
 }
 
 /**

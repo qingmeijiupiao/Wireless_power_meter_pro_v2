@@ -14,6 +14,8 @@ using esp_err_t = int;
 constexpr int ESP_OK=0, ESP_FAIL=-1, ESP_ERR_NO_MEM=1, ESP_ERR_INVALID_STATE=2,
               ESP_ERR_INVALID_ARG=3, ESP_ERR_INVALID_RESPONSE=4, ESP_ERR_TIMEOUT=5;
 inline const char* esp_err_to_name(int) { return "fake_error"; }
+#define ESP_LOGD(...) ((void)0)
+#define DEVICE_EVENT_I(...) ((void)0)
 #define ESP_LOGI(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
@@ -82,7 +84,11 @@ inline esp_err_t read_short_detect_voltage_mV(int& voltage) {
     ++Host::samples;
     return Host::adc_error ? ESP_FAIL : sample_error;
 }
-struct GlobalState { struct { bool output_enabled=false; } flags; };
+struct GlobalState {
+    struct { bool output_enabled=false; } flags;
+    struct { struct { int temperature_protect_state=0, high_voltage_protect_state=0,
+                         low_voltage_protect_state=0, current_protect_state=0; } states_bit; } protect_states;
+};
 inline std::mutex global_mutex;
 inline GlobalState global_state;
 inline GlobalState get_global_state() { std::lock_guard lock(global_mutex); return global_state; }

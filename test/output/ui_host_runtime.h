@@ -1,7 +1,8 @@
 #pragma once
 #include "output_host_runtime.h"
 #include <cstring>
-enum class ButtonEvent { SHORT_PRESS, DOUBLE_CLICK, LONG_PRESS, SUPER_LONG_PRESS };
+#include "widgets/output_view.h"
+enum class ButtonEvent { SHORT_PRESS, DOUBLE_CLICK, LONG_PRESS, SUPER_LONG_PRESS, PRESS, RELEASE };
 namespace SCREEN { enum class ButtonId { Main, Side, Previous }; }
 constexpr uint32_t portTICK_PERIOD_MS=1;
 inline uint32_t xTaskGetTickCount(){return Host::ui_ticks;}
@@ -45,5 +46,10 @@ class CurveHistory {
     static CurveHistory& instance(){static CurveHistory history;return history;}
     void poll(uint32_t now){UiHost::history_times.push_back(now);}
 };
-namespace UI { inline void short_circuit_dialog(bool,uint16_t,uint16_t){UiHost::dialog=true;} }
+namespace UI {
+inline OutputView current_output_view;
+inline const OutputView& output_view(){return current_output_view;}
+inline void set_output_view(const OutputView& view){current_output_view=view;}
+inline void output_feedback_overlay(bool){}
+inline void short_circuit_dialog(bool,uint16_t,uint16_t){UiHost::dialog=true;} }
 }

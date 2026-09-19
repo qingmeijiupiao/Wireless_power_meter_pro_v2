@@ -64,15 +64,15 @@ esp_err_t set_start_logo_duration_ms(uint32_t duration_ms) {
 }
 
 esp_err_t init_buttons() {
-    main_button.bind_event(ButtonEvent::SHORT_PRESS, []() {
-        if (!post_button_event(ButtonId::Main, ButtonEvent::SHORT_PRESS)) {
+    // 主按键只使用消抖后的按下边沿：立即触发动作，不等待双击窗口。
+    // 双击/长按事件不绑定，由按键库生成但不消费。
+    main_button.bind_event(ButtonEvent::PRESS, []() {
+        if (!post_button_event(ButtonId::Main, ButtonEvent::PRESS)) {
             PowerOutput::request(PowerOutput::OutputOperation::TOGGLE, TAG);
         }
     });
-    main_button.bind_event(ButtonEvent::LONG_PRESS,
-                           []() { post_button_event(ButtonId::Main, ButtonEvent::LONG_PRESS); });
-    main_button.bind_event(ButtonEvent::DOUBLE_CLICK,
-                           []() { post_button_event(ButtonId::Main, ButtonEvent::DOUBLE_CLICK); });
+    main_button.bind_event(ButtonEvent::RELEASE,
+                           []() { post_button_event(ButtonId::Main, ButtonEvent::RELEASE); });
     side_button.bind_event(ButtonEvent::SHORT_PRESS,
                            []() { post_button_event(ButtonId::Side, ButtonEvent::SHORT_PRESS); });
     side_button.bind_event(ButtonEvent::DOUBLE_CLICK,

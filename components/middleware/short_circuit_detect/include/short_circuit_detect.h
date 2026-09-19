@@ -24,8 +24,11 @@ constexpr uint8_t MAX_CONSECUTIVE_INVALID_SAMPLES = 3;
 /** 单次短路检测结果。 */
 struct Result {
     uint16_t voltage_mV;   /**< 最后一次有效采样电压。 */
+    uint16_t min_voltage_mV; /**< 窗口内最低有效采样电压；无有效采样时为 0。 */
     uint16_t threshold_mV; /**< 本次判定使用的阈值。 */
     uint16_t sample_count; /**< 有效采样总数。 */
+    uint16_t invalid_count; /**< 无效采样总数，包含已恢复的瞬时错误。 */
+    uint32_t duration_ms; /**< 检测调用耗时，包含清理；由退出守卫填写。 */
     bool     is_short;     /**< 500ms 内未获得连续三次达标采样。 */
 };
 
@@ -50,9 +53,10 @@ esp_err_t ensure_idle();
  * @return ESP_OK 检测完成；其他值表示 GPIO 或 ADC 操作失败。
  */
 using CancelCheck = bool (*)(void* context);
-/** 激励最长 500ms，间隔 10ms 采样，连续三次 >= 阈值即提前通过；低值清零计数。
- * ADC 读取错误或负电压会打断连续达标计数并重试；连续三次无效才返回检测错误。
- * 取消检查在采样间执行，取消返回 ESP_ERR_INVALID_STATE，并清理激励。
+/** 激励最长 500ms，间隔 10ms 采样，连续三次 >= 阈值即提前通过；有效低电压清零计数。
+ * ADC 读取错误或负电压计入 invalid_count 并重试，但不打断达标计数；连续三次无效才返回检测错误。
+ * 结果同时给出窗口内最低有效电压 min_voltage_mV，供失败原因展示。取消检查在采样间执行，
+ * 取消返回 ESP_ERR_INVALID_STATE，并清理激励。
  */
 esp_err_t test(Result& result, CancelCheck cancelled = nullptr, void* context = nullptr);
 

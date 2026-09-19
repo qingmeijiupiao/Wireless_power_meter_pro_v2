@@ -185,7 +185,7 @@ bool CurvePage::handle_button(ButtonId button, ButtonEvent event) {
         return true;
     }
 
-    if (button == ButtonId::Main && event == ButtonEvent::SHORT_PRESS) {
+    if (button == ButtonId::Main && event == ButtonEvent::PRESS) {
         if (edit_item_ == EditItem::Display) {
             display_mode_ = static_cast<DisplayMode>((static_cast<uint8_t>(display_mode_) + 1) %
                                                      static_cast<uint8_t>(DisplayMode::Count));
