@@ -106,6 +106,7 @@ esp_err_t init() {
     ESP_ERROR_CHECK(WebServer::on("/api/can", WebServer::Method::GET, can_handler));
     ESP_ERROR_CHECK(WebServer::on("/api/can", WebServer::Method::POST, can_handler));
     ESP_ERROR_CHECK(WebServer::on("/api/calibration", WebServer::Method::GET, calibration_handler));
+    ESP_ERROR_CHECK(WebServer::on("/api/calibration", WebServer::Method::POST, calibration_handler));
     ESP_ERROR_CHECK(WebServer::on("/api/diagnostics", WebServer::Method::GET, diagnostics_handler));
     ESP_ERROR_CHECK(WebServer::on("/api/rtos/stats", WebServer::Method::GET, rtos_stats_handler));
     ESP_ERROR_CHECK(WebServer::on("/api/rtos/stats", WebServer::Method::POST, rtos_stats_handler));

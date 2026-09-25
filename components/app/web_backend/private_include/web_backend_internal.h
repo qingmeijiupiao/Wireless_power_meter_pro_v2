@@ -62,6 +62,9 @@ bool json_get_bool(const char* json, const char* key, bool* out);
 /** @brief 从 JSON 请求体中读取 uint32 字段。 */
 bool json_get_uint32(const char* json, const char* key, uint32_t* out);
 
+/** @brief 从 JSON 请求体中读取 int32 字段，支持负号。 */
+bool json_get_int32(const char* json, const char* key, int32_t* out);
+
 /** @brief 判断 JSON 请求体中是否存在指定字段。 */
 bool json_has_key(const char* json, const char* key);
 
@@ -116,7 +119,7 @@ esp_err_t start_logo_handler(WebServer::Request* request);
 esp_err_t protect_handler(WebServer::Request* request);
 /** @brief 查询或更新 CAN 配置。 */
 esp_err_t can_handler(WebServer::Request* request);
-/** @brief 返回电流校准参数。 */
+/** @brief 查询或更新电流校准参数。 */
 esp_err_t calibration_handler(WebServer::Request* request);
 /** @brief 返回底层测量诊断信息。 */
 esp_err_t diagnostics_handler(WebServer::Request* request);

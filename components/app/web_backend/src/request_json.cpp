@@ -188,6 +188,41 @@ bool token_to_uint32(const char* json, const jsmntok_t& token, uint32_t* out) {
     return true;
 }
 
+bool token_to_int32(const char* json, const jsmntok_t& token, int32_t* out) {
+    if (token.type != JSMN_PRIMITIVE || token.start >= token.end) {
+        return false;
+    }
+    int  offset   = token.start;
+    bool negative = false;
+    if (json[offset] == '-') {
+        negative = true;
+        ++offset;
+    }
+    if (offset >= token.end) {
+        return false;
+    }
+    // 先按 int64 累加，再统一做范围检查，避免 INT32_MIN 取负溢出。
+    int64_t value = 0;
+    for (; offset < token.end; ++offset) {
+        const char digit = json[offset];
+        if (digit < '0' || digit > '9') {
+            return false;
+        }
+        value = value * 10 + (digit - '0');
+        if (value > static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 1) {
+            return false;
+        }
+    }
+    if (negative) {
+        value = -value;
+    }
+    if (value < std::numeric_limits<int32_t>::min() || value > std::numeric_limits<int32_t>::max()) {
+        return false;
+    }
+    *out = static_cast<int32_t>(value);
+    return true;
+}
+
 void skip_whitespace(const char* json, size_t json_size, size_t* offset) {
     while (*offset < json_size) {
         const char byte = json[*offset];
@@ -370,6 +405,12 @@ bool json_get_bool(const char* json, const char* key, bool* out) {
 bool json_get_uint32(const char* json, const char* key, uint32_t* out) {
     return out != nullptr && read_top_level_field(json, key, [json, out](const jsmntok_t& token) {
                return token_to_uint32(json, token, out);
+           });
+}
+
+bool json_get_int32(const char* json, const char* key, int32_t* out) {
+    return out != nullptr && read_top_level_field(json, key, [json, out](const jsmntok_t& token) {
+               return token_to_int32(json, token, out);
            });
 }
 

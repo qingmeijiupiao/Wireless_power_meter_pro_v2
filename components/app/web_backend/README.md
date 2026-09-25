@@ -86,7 +86,7 @@ OTA 诊断统一使用轻量文本事件，不附加结构化状态快照。上�
 | `/api/start-logo` | GET/POST | 查询或设置开机画面显示时长，`duration_ms=0` 表示关闭 |
 | `/api/protect` | GET/POST | 查询保护详情、开启/关闭保护功能，或更新持久化保护阈值 |
 | `/api/can` | GET/POST | 查询或设置 CAN 波特率和设备 ID |
-| `/api/calibration` | GET | 查询电流校准参数 |
+| `/api/calibration` | GET/POST | 查询或更新电流校准参数（K 值、温漂、插值点位） |
 | `/api/diagnostics` | GET | 查询 INA228 原始寄存器等诊断数据 |
 | `/api/rtos/stats` | GET/POST | 查询或配置任务运行统计采样 |
 | `/api/logs` | GET | 按 `since` 增量读取最近 8KB 实时 ESP 日志 |
@@ -246,6 +246,35 @@ WebBackend::start_with_wifi_service();
 ### POST `/api/wifi/off`
 
 停止 DNS 劫持和 Captive Portal，关闭 IP 网络服务并进入 ESPNOW_ONLY，保留供 ESP-NOW 使用的 STA 射频。
+
+### GET/POST `/api/calibration`
+
+GET 返回电流校准参数快照（`current_base_k`、`sample_resistance_mohm`、`temperature_k`、`base_temperature_c` 和 6 个点位）。POST 支持校准写入，可单独或组合提交字段，至少提供一项操作：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `base_k` | uint32 | 直接写入 K，范围 1-65535 |
+| `real_current_ma` | uint32 | 按真实电流和当前 shunt 原始值绝对值自动计算 K：`K = real_uA / |register_raw|`，范围 1-100000 mA |
+| `temperature_k` | int32 | 直接写入温漂系数，范围 -32767~32767 ppm/℃ |
+| `temp_display_current_ma` + `temp_real_current_ma` | uint32 | 按当前板温和实测电流自动计算温漂系数 |
+| `point_index` + `point_register_raw` + `point_real_current_ma` | uint32 | 用当前 K 计算并写入插值点，`point_index` 为 0-5 |
+| `reset_secondary` | bool | 清除插值点与温漂系数，保留 K |
+
+自动计算 K 时，后端读取 `GlobalState.current_register_raw`；该值为 0 时返回 `register_raw_unavailable`，要求先让负载稳定工作。原始值允许为负，取绝对值计算，兼容采样方向反向的接线。所有输入都会做范围检查，失败返回 `{"ok":false,"reason":"..."}` 和 HTTP 400。
+
+请求示例：
+
+```json
+{"real_current_ma": 1230}
+```
+
+响应示例：
+
+```json
+{"ok":true,"reboot_required":true,"computed_base_k":1114,"computed_temperature_k":0,"temperature_computed":false,"current_base_k":1114,"sample_resistance_mohm":2.244,"temperature_k":0,"base_temperature_c":35.00,"points":[]}
+```
+
+校准参数写入 NVS，但 LP 核只在启动时加载，因此响应始终带 `reboot_required:true`；前端在保存后应提示用户重启。K 值校准是复刻设备的必做项，其余项可选。
 
 ## 请求流程
 

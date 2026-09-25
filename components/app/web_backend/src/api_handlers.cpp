@@ -483,28 +483,208 @@ esp_err_t can_handler(WebServer::Request* request) {
     return WebServer::send_json(request, response_buffer);
 }
 
-/** @brief GET /api/calibration，返回电流校准参数快照。 */
-esp_err_t calibration_handler(WebServer::Request* request) {
-    auto   params                 = CurrentCalib::params_data.read();
-    float  sample_resistance_mohm = params.current_base_K == 0 ? 0.0f : 2500.0f / params.current_base_K;
-    size_t pos                    = 0;
-    bool   ok                     = append_checked(detail_response_buffer, sizeof(detail_response_buffer), &pos,
-                                                   "{\"current_base_k\":%" PRIu32
-                                                   ",\"sample_resistance_mohm\":%.3f,\"temperature_k\":%d,\"base_"
-                                                                         "temperature_c\":%.2f,\"points\":[",
-                                                   static_cast<uint32_t>(params.current_base_K), sample_resistance_mohm, params.temperature_K,
-                                                   CurrentCalib::BASE_TEMPERATURE / 100.0f);
+namespace {
+// 校准参数合法范围，与 LP 核使用的字段类型保持一致。
+constexpr uint32_t CALIB_BASE_K_MIN        = 1;
+constexpr uint32_t CALIB_BASE_K_MAX        = 65535;
+constexpr uint32_t CALIB_CURRENT_MA_MAX    = 100000; // 100 A
+constexpr uint32_t CALIB_REGISTER_RAW_MAX  = 32767;
+constexpr int32_t  CALIB_TEMPERATURE_K_MIN = -32767;
+constexpr int32_t  CALIB_TEMPERATURE_K_MAX = 32767;
+constexpr size_t   CALIB_POINT_COUNT       = 6;
 
-    for (size_t i = 0; ok && i < sizeof(params.points) / sizeof(params.points[0]); ++i) {
-        ok = append_checked(detail_response_buffer, sizeof(detail_response_buffer), &pos,
+esp_err_t calibration_bad_request(WebServer::Request* request, const char* reason) {
+    snprintf(response_buffer, sizeof(response_buffer), "{\"ok\":false,\"reason\":\"%s\"}\n", reason);
+    return WebServer::send(request, 400, "application/json", response_buffer, strlen(response_buffer));
+}
+
+bool append_calibration_fields(char* out, size_t out_size, size_t* pos, const CurrentCalib::params_t& params) {
+    const float sample_resistance_mohm = params.current_base_K == 0 ? 0.0f : 2500.0f / params.current_base_K;
+    bool        ok                     = append_checked(
+        out, out_size, pos,
+        "\"current_base_k\":%" PRIu32 ",\"sample_resistance_mohm\":%.3f,\"temperature_k\":%d,"
+        "\"base_temperature_c\":%.2f,\"points\":[",
+        static_cast<uint32_t>(params.current_base_K), sample_resistance_mohm, params.temperature_K,
+        CurrentCalib::BASE_TEMPERATURE / 100.0f);
+
+    for (size_t i = 0; ok && i < CALIB_POINT_COUNT; ++i) {
+        ok = append_checked(out, out_size, pos,
                             "%s{\"index\":%" PRIu32
                             ",\"register_value\":%d,\"no_offset_ma\":%d,\"offset_ua\":%d}",
                             i == 0 ? "" : ",", static_cast<uint32_t>(i), params.points[i].register_value,
                             params.points[i].register_value * params.current_base_K / 1000,
                             params.points[i].offset_current_100uA * 100);
     }
+    return ok && append_checked(out, out_size, pos, "]");
+}
+} // namespace
 
-    if (!ok || !append_checked(detail_response_buffer, sizeof(detail_response_buffer), &pos, "]}\n")) {
+/**
+ * @brief GET/POST /api/calibration
+ *
+ * GET 返回电流校准参数快照。POST 支持四类操作，可单独或组合提交：
+ * - `base_k` 直接写入 K；`real_current_ma` 按当前 shunt 原始值绝对值自动计算 K。
+ * - `temperature_k` 直接写入温漂系数；`temp_display_current_ma` + `temp_real_current_ma`
+ *   按当前板温自动计算温漂系数。
+ * - `point_index` + `point_register_raw` + `point_real_current_ma` 用当前 K 计算并写入插值点。
+ * - `reset_secondary` 清除插值点与温漂系数（保留 K）。
+ *
+ * 校准结果写入 NVS，需要重启后由 LP 核重新加载才会生效，响应以 `reboot_required` 提示。
+ */
+esp_err_t calibration_handler(WebServer::Request* request) {
+    if (request->method == WebServer::Method::POST) {
+        esp_err_t ret = WebServer::load_body(request);
+        if (ret != ESP_OK) {
+            return ret;
+        }
+        const char* body = request->body;
+
+        CurrentCalib::params_t params                   = CurrentCalib::params_data.read();
+        bool                   any_change               = false;
+        int32_t                computed_base_k          = -1;
+        int32_t                computed_temperature_k   = 0;
+        bool                   temperature_computed     = false;
+
+        bool reset_secondary = false;
+        if (json_get_bool(body, "reset_secondary", &reset_secondary) && reset_secondary) {
+            memset(params.points, 0, sizeof(params.points));
+            params.temperature_K = 0;
+            any_change           = true;
+        }
+
+        uint32_t base_k = 0;
+        if (json_get_uint32(body, "base_k", &base_k)) {
+            if (base_k < CALIB_BASE_K_MIN || base_k > CALIB_BASE_K_MAX) {
+                return calibration_bad_request(request, "invalid_base_k");
+            }
+            params.current_base_K = static_cast<uint16_t>(base_k);
+            any_change            = true;
+        }
+
+        uint32_t real_current_ma = 0;
+        if (json_get_uint32(body, "real_current_ma", &real_current_ma)) {
+            if (real_current_ma < 1 || real_current_ma > CALIB_CURRENT_MA_MAX) {
+                return calibration_bad_request(request, "invalid_real_current");
+            }
+            const int16_t raw = get_global_state().current_register_raw;
+            if (raw == 0) {
+                return calibration_bad_request(request, "register_raw_unavailable");
+            }
+            // K 为正的 uA/LSB 系数，使用原始值绝对值，兼容采样方向反向导致的负值。
+            const int32_t raw_magnitude = raw < 0 ? -static_cast<int32_t>(raw) : static_cast<int32_t>(raw);
+            const int64_t real_ua       = static_cast<int64_t>(real_current_ma) * 1000;
+            const int64_t k             = (real_ua + raw_magnitude / 2) / raw_magnitude;
+            if (k < CALIB_BASE_K_MIN || k > CALIB_BASE_K_MAX) {
+                return calibration_bad_request(request, "computed_base_k_out_of_range");
+            }
+            params.current_base_K = static_cast<uint16_t>(k);
+            computed_base_k       = static_cast<int32_t>(k);
+            any_change            = true;
+        }
+
+        int32_t temperature_k = 0;
+        if (json_get_int32(body, "temperature_k", &temperature_k)) {
+            if (temperature_k < CALIB_TEMPERATURE_K_MIN || temperature_k > CALIB_TEMPERATURE_K_MAX) {
+                return calibration_bad_request(request, "invalid_temperature_k");
+            }
+            params.temperature_K = static_cast<int16_t>(temperature_k);
+            any_change           = true;
+        }
+
+        uint32_t   temp_display_ma   = 0;
+        uint32_t   temp_real_ma      = 0;
+        const bool has_temp_display  = json_get_uint32(body, "temp_display_current_ma", &temp_display_ma);
+        const bool has_temp_real     = json_get_uint32(body, "temp_real_current_ma", &temp_real_ma);
+        if (has_temp_display || has_temp_real) {
+            if (!has_temp_display || !has_temp_real) {
+                return calibration_bad_request(request, "temperature_requires_display_and_real");
+            }
+            if (temp_display_ma == 0 || temp_real_ma == 0 || temp_real_ma > CALIB_CURRENT_MA_MAX ||
+                temp_display_ma > CALIB_CURRENT_MA_MAX) {
+                return calibration_bad_request(request, "invalid_temperature_current");
+            }
+            const int32_t board_temperature = get_global_state().board_temperature; // 0.01℃
+            const int32_t delta_temp_c      = (board_temperature - CurrentCalib::BASE_TEMPERATURE) / 100;
+            if (delta_temp_c == 0) {
+                return calibration_bad_request(request, "temperature_delta_zero");
+            }
+            const int64_t numerator =
+                (static_cast<int64_t>(temp_display_ma) - static_cast<int64_t>(temp_real_ma)) * 1000000;
+            const int64_t denominator = static_cast<int64_t>(temp_real_ma) * delta_temp_c;
+            const int64_t drift_ppm   = numerator >= 0 ? (numerator + denominator / 2) / denominator
+                                                       : (numerator - denominator / 2) / denominator;
+            if (drift_ppm < CALIB_TEMPERATURE_K_MIN || drift_ppm > CALIB_TEMPERATURE_K_MAX) {
+                return calibration_bad_request(request, "computed_temperature_k_out_of_range");
+            }
+            params.temperature_K   = static_cast<int16_t>(drift_ppm);
+            computed_temperature_k = static_cast<int32_t>(drift_ppm);
+            temperature_computed   = true;
+            any_change             = true;
+        }
+
+        uint32_t   point_index     = 0;
+        uint32_t   point_raw       = 0;
+        uint32_t   point_real_ma   = 0;
+        const bool has_point_index = json_get_uint32(body, "point_index", &point_index);
+        const bool has_point_raw   = json_get_uint32(body, "point_register_raw", &point_raw);
+        const bool has_point_real  = json_get_uint32(body, "point_real_current_ma", &point_real_ma);
+        if (has_point_index || has_point_raw || has_point_real) {
+            if (!has_point_index || !has_point_raw || !has_point_real) {
+                return calibration_bad_request(request, "point_requires_index_register_and_current");
+            }
+            if (point_index >= CALIB_POINT_COUNT) {
+                return calibration_bad_request(request, "invalid_point_index");
+            }
+            if (point_raw < 1 || point_raw > CALIB_REGISTER_RAW_MAX) {
+                return calibration_bad_request(request, "invalid_point_register");
+            }
+            if (point_real_ma < 1 || point_real_ma > CALIB_CURRENT_MA_MAX) {
+                return calibration_bad_request(request, "invalid_point_current");
+            }
+            const int64_t real_ua   = static_cast<int64_t>(point_real_ma) * 1000;
+            const int64_t linear_ua = static_cast<int64_t>(params.current_base_K) * static_cast<int64_t>(point_raw);
+            const int64_t offset_ua = real_ua - linear_ua;
+            const int64_t offset_100ua = offset_ua >= 0 ? (offset_ua + 50) / 100 : (offset_ua - 50) / 100;
+            if (offset_100ua < -32768 || offset_100ua > 32767) {
+                return calibration_bad_request(request, "point_offset_out_of_range");
+            }
+            params.points[point_index].register_value       = static_cast<int16_t>(point_raw);
+            params.points[point_index].offset_current_100uA = static_cast<int16_t>(offset_100ua);
+            any_change                                      = true;
+        }
+
+        if (!any_change) {
+            return calibration_bad_request(request, "missing_update");
+        }
+
+        const esp_err_t persist_ret = CurrentCalib::params_data.set(params);
+        if (persist_ret != ESP_OK) {
+            return WebServer::send(request, 500, "application/json", "{\"ok\":false,\"reason\":\"persist_failed\"}\n",
+                                   strlen("{\"ok\":false,\"reason\":\"persist_failed\"}\n"));
+        }
+        DEVICE_EVENT_I(TAG, "calib: web base_k=%u temperature_k=%d source=web reboot_required=1",
+                       static_cast<uint32_t>(params.current_base_K), params.temperature_K);
+
+        size_t pos = 0;
+        bool   ok  = append_checked(response_buffer, sizeof(response_buffer), &pos,
+                                    "{\"ok\":true,\"reboot_required\":true,\"computed_base_k\":%d,"
+                                    "\"computed_temperature_k\":%d,\"temperature_computed\":%s,",
+                                    computed_base_k, computed_temperature_k, temperature_computed ? "true" : "false");
+        ok = ok && append_calibration_fields(response_buffer, sizeof(response_buffer), &pos, params);
+        ok = ok && append_checked(response_buffer, sizeof(response_buffer), &pos, "}\n");
+        if (!ok) {
+            snprintf(response_buffer, sizeof(response_buffer), "{\"ok\":false,\"reason\":\"response_too_large\"}\n");
+            return WebServer::send(request, 500, "application/json", response_buffer, strlen(response_buffer));
+        }
+        return WebServer::send_json(request, response_buffer);
+    }
+
+    const CurrentCalib::params_t params = CurrentCalib::params_data.read();
+    size_t                       pos    = 0;
+    bool                         ok     = append_checked(detail_response_buffer, sizeof(detail_response_buffer), &pos, "{");
+    ok = ok && append_calibration_fields(detail_response_buffer, sizeof(detail_response_buffer), &pos, params);
+    ok = ok && append_checked(detail_response_buffer, sizeof(detail_response_buffer), &pos, "}\n");
+    if (!ok) {
         snprintf(detail_response_buffer, sizeof(detail_response_buffer), "{\"error\":\"response_too_large\"}\n");
     }
     return WebServer::send_json(request, detail_response_buffer);
