@@ -126,8 +126,8 @@ if (CanCallback::is_available()) {
 - [`can_resistor`](../../middleware/can_resistor/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 - [`HXC_NVS`](../../bsp/HXC_NVS/README.md)（`bsp`）
-- [`HXC_TWAI`](../../bsp/HXC_TWAI/README.md)（`bsp`）
-- [`diagnostic_log`](../../common/diagnostic_log/README.md)（`common`）
+- [`HXC_TWAI`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/bsp/HXC_TWAI/README.md)（`bsp`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

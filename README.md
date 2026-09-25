@@ -181,8 +181,8 @@ ESP-NOW 和普通 WiFi 共用同一套 2.4 GHz 射频，因此不能把它们当
 
 | 领域 | 模块 |
 |------|------|
-| 网络服务 | [WebServer](components/middleware/WebServer/README.md) · [DNSServer](components/middleware/DNSServer/README.md) · [espnow_link](components/middleware/espnow_link/README.md) · [time_service](components/middleware/time_service/README.md) |
-| 数据与升级 | [blackbox](components/middleware/blackbox/README.md) · [energy_meter](components/middleware/energy_meter/README.md) · [ota_manager](components/middleware/ota_manager/README.md) |
+| 网络服务 | [WebServer](components/middleware/WebServer/README.md) · [DNSServer](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/DNSServer/README.md) · [espnow_link](components/middleware/espnow_link/README.md) · [time_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/time_service/README.md) |
+| 数据与升级 | [blackbox](components/middleware/blackbox/README.md) · [energy_meter](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/energy_meter/README.md) · [ota_manager](components/middleware/ota_manager/README.md) |
 | 设备交互 | [Button](components/middleware/Button/README.md) · [can_resistor](components/middleware/can_resistor/README.md) |
 
 ### BSP、通用库与资源
@@ -190,10 +190,10 @@ ESP-NOW 和普通 WiFi 共用同一套 2.4 GHz 射频，因此不能把它们当
 | 领域 | 模块 |
 |------|------|
 | 模拟与温度 | [ADC](components/bsp/ADC/README.md) · [Temperature](components/bsp/Temperature/README.md) |
-| 总线与无线 | [HXC_TWAI](components/bsp/HXC_TWAI/README.md) · [wifi_manager](components/bsp/wifi_manager/README.md) |
-| GPIO 与显示 | [cpp_gpio_driver](components/bsp/cpp_gpio_driver/README.md) · [PWM](components/bsp/PWM/README.md) · [st7789_driver](components/bsp/st7789_driver/README.md) |
+| 总线与无线 | [HXC_TWAI](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/bsp/HXC_TWAI/README.md) · [wifi_manager](components/bsp/wifi_manager/README.md) |
+| GPIO 与显示 | [cpp_gpio_driver](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/bsp/cpp_gpio_driver/README.md) · [PWM](components/bsp/PWM/README.md) · [st7789_driver](components/bsp/st7789_driver/README.md) |
 | 存储与平台 | [HXC_NVS](components/bsp/HXC_NVS/README.md) · [circular_flash_buffer](components/bsp/circular_flash_buffer/README.md) · [hardware](components/bsp/hardware/README.md) · [shell](components/bsp/shell/README.md) |
-| 通用库 | [diagnostic_log](components/common/diagnostic_log/README.md) · [Interp](components/common/Interp/README.md) |
+| 通用库 | [diagnostic_log](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md) · [Interp](components/common/Interp/README.md) |
 | 静态资源 | [Fonts](components/assets/Fonts/README.md) · [ui_resources](components/assets/ui_resources/README.md) · [web_file](components/assets/web_file/README.md) |
 
 ## 二次开发入口

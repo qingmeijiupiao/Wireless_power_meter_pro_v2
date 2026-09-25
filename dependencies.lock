@@ -1,4 +1,44 @@
 dependencies:
+  DNSServer:
+    component_hash: b0f52f5e6f79d6be5dc0e5948541eb8632dd8931e3cb2c1715d1249caac2446e
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/DNSServer
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  HXC_TWAI:
+    component_hash: ca543e631c3cb2b1003856616ad0a1e829b9501a9ed63fd8b7b9b54da4e8cd4c
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/bsp/HXC_TWAI
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  cpp_gpio_driver:
+    component_hash: dc7c527395a7471677f4dba0cf74e0cc6fb45ee31ce1e9a4f97e5741ee04c853
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/bsp/cpp_gpio_driver
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  diagnostic_log:
+    component_hash: 6021d94d00e632b2f55891e111d7210069d504242ad011cf584a4bc711a1566b
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/common/diagnostic_log
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  energy_meter:
+    component_hash: 5ed3b9957deb36008821bebc642da3bbde4ebf3b9b2d511971b54e53e31b2e9c
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/energy_meter
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
   espressif/jsmn:
     component_hash: d80350c41bbaa827c98a25b6072df00884e72f54885996fab4a4f0aebce6b6c3
     dependencies:
@@ -13,9 +53,23 @@ dependencies:
     source:
       type: idf
     version: 6.0.0
+  time_service:
+    component_hash: 18afd2ba7c186fd8d2b169fb37b4ee06c71a6fcdffe6f3b9a8ac36c0f88e5eef
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/time_service
+      type: git
+    version: 326101ce6642ac052fccea73469651e540f6e48e
 direct_dependencies:
+- DNSServer
+- HXC_TWAI
+- cpp_gpio_driver
+- diagnostic_log
+- energy_meter
 - espressif/jsmn
 - idf
-manifest_hash: 42892584969aa2930626e06baf193188decb9d3ed5e514711ad2807485d666b4
+- time_service
+manifest_hash: 1bfb39ccbb4fa755f2907f80158123c16f3779034c7480b538da675e17d6a89b
 target: esp32c6
 version: 3.0.0

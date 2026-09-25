@@ -338,7 +338,7 @@ sequenceDiagram
 工程内直接依赖：
 
 - [`blackbox_service`](../blackbox_service/README.md)（`app`）
-- [`diagnostic_log`](../../common/diagnostic_log/README.md)（`common`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md)（`common`）
 - [`can_callback`](../can_callback/README.md)（`app`）
 - [`current_calibration`](../current_calibration/README.md)（`app`）
 - [`espnow_service`](../espnow_service/README.md)（`app`）
@@ -348,7 +348,7 @@ sequenceDiagram
 - [`protect`](../protect/README.md)（`app`）
 - [`screen`](../screen/README.md)（`app`）
 - [`wifi_service`](../wifi_service/README.md)（`app`）
-- [`energy_meter`](../../middleware/energy_meter/README.md)（`middleware`）
+- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/energy_meter/README.md)（`middleware`）
 - [`espnow_link`](../../middleware/espnow_link/README.md)（`middleware`）
 - [`ota_manager`](../../middleware/ota_manager/README.md)（`middleware`）
 - [`WebServer`](../../middleware/WebServer/README.md)（`middleware`）

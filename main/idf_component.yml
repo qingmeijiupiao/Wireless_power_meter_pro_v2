@@ -15,3 +15,27 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   espressif/jsmn: ^1.1.0
+  diagnostic_log:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/common/diagnostic_log
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  HXC_TWAI:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/bsp/HXC_TWAI
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  cpp_gpio_driver:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/bsp/cpp_gpio_driver
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  DNSServer:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/DNSServer
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  energy_meter:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/energy_meter
+    version: 326101ce6642ac052fccea73469651e540f6e48e
+  time_service:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/time_service
+    version: 326101ce6642ac052fccea73469651e540f6e48e
