@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# pre-push：阻止不符合项目提交信息规范的提交被推送。
+#
+# 规范（每个被推送的提交都必须满足）：
+#   首行：TYPE：中文描述
+#         TYPE ∈ FEAT / FIX / STYLE / VER / DOCS / REFACTOR / PERF
+#                / TEST / CHORE / BUILD / CI / REVERT
+#         分隔符必须是全角冒号“：”。
+#   FEAT / FIX 提交还必须包含三段正文：
+#         WHY：...
+#         WHAT：...
+#         TEST：...
+#
+# 跳过方式：git push --no-verify
+
+zero="0000000000000000000000000000000000000000"
+allowed='FEAT|FIX|STYLE|VER|DOCS|REFACTOR|PERF|TEST|CHORE|BUILD|CI|REVERT'
+failed=0
+
+check_commit() {
+    sha="$1"
+    subject=$(git log -1 --format=%s "$sha" 2>/dev/null)
+    body=$(git log -1 --format=%B "$sha" 2>/dev/null)
+
+    if ! printf '%s' "$subject" | grep -Eq "^(${allowed})：.+"; then
+        printf 'x %s 提交信息不规范\n' "$sha"
+        printf '    首行应为 “TYPE：中文描述”，TYPE 用 %s，分隔符为全角冒号。\n' "$allowed"
+        printf '    实际首行：%s\n' "$subject"
+        failed=1
+        return
+    fi
+
+    type=$(printf '%s' "$subject" | sed -E "s/^(${allowed})：.*/\1/")
+    case "$type" in
+        FEAT|FIX)
+            for section in WHY WHAT TEST; do
+                if ! printf '%s\n' "$body" | grep -Eq "^${section}："; then
+                    printf 'x %s 缺少 “%s：” 段落\n' "$sha" "$section"
+                    failed=1
+                fi
+            done
+            ;;
+    esac
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue   # 删除远端引用，无需校验
+
+    if [ "$remote_sha" = "$zero" ]; then
+        commits=$(git rev-list --no-merges "$local_sha" --not --remotes)
+    else
+        commits=$(git rev-list --no-merges "$remote_sha..$local_sha")
+    fi
+
+    for c in $commits; do
+        check_commit "$c"
+    done
+done
+
+if [ "$failed" -ne 0 ]; then
+    printf '\n推送被阻止：请按项目规范修正提交信息（git rebase -i / git commit --amend）后重试。\n'
+    printf '临时跳过：git push --no-verify\n'
+    exit 1
+fi
+exit 0

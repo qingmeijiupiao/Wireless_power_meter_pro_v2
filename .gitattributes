@@ -1,0 +1,2 @@
+# Git 钩子由自带的 POSIX shell 执行，Windows 下必须保持 LF 行尾。
+.githooks/** text eol=lf
