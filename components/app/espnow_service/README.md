@@ -61,9 +61,9 @@ ESP_ERROR_CHECK(EspNowService::init());
 
 - [`global_state`](../global_state/README.md)（`app`）
 - [`power_output`](../power_output/README.md)（`app`）
-- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/middleware/energy_meter/README.md)（`middleware`）
-- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/middleware/espnow_link/README.md)（`middleware`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/common/diagnostic_log/README.md)（`common`）
+- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/energy_meter/README.md)（`middleware`）
+- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/espnow_link/README.md)（`middleware`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

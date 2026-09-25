@@ -42,8 +42,8 @@ Manifest 声明的固件大小，并由 ESP-IDF OTA API 执行固件镜像校验
 
 工程内直接依赖：
 
-- [`ota_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/middleware/ota_manager/README.md)（`middleware`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/common/diagnostic_log/README.md)（`common`）
+- [`ota_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/ota_manager/README.md)（`middleware`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

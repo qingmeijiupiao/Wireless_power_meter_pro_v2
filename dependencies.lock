@@ -6,7 +6,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/ADC
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   Button:
     component_hash: 3a20b12e7f8f0d70203f042fcf637dba96658a50dffbcea4f9a035856565fb75
     dependencies: []
@@ -14,7 +14,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/Button
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   DNSServer:
     component_hash: 5b3ebcf468b9bec43dae9f22827a30a555be47cc972e77923e94dc6efa1c42c4
     dependencies: []
@@ -22,7 +22,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/DNSServer
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   HXC_NVS:
     component_hash: ace14a26b036a8a51f191146556bb91c5aa7af50e3baf6ee087fd133f9f23f7b
     dependencies: []
@@ -30,7 +30,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/HXC_NVS
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   HXC_TWAI:
     component_hash: 1eb3414501339846bf7763edd78f0936718e85b3c83fee7426fff57d312db82c
     dependencies: []
@@ -38,7 +38,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/HXC_TWAI
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   Interp:
     component_hash: 1ba36287c5d1dab068a1f39367b02de9d4c77f435c398cb28c43de8a273865bf
     dependencies: []
@@ -46,7 +46,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/common/Interp
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   PWM:
     component_hash: 409910f2fda76fea9f561449a9e7770ce79e101cca972edca6f5e3f00100651f
     dependencies: []
@@ -54,7 +54,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/PWM
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   WebServer:
     component_hash: 66bd8fad4a4709fad937e59e779df1599260afc67016456e2fd3d383c3a91624
     dependencies: []
@@ -62,7 +62,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/WebServer
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   blackbox:
     component_hash: ca7085d7c46e6114df597f9716077d670b3ffefc7f7a1f892854a5cfa634d203
     dependencies: []
@@ -70,15 +70,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/blackbox
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
-  can_resistor:
-    component_hash: cebd0da1c9321e50f64949de94c26ea96c076762d95bde7cc56f5a36c5c9cf4a
-    dependencies: []
-    source:
-      git: https://github.com/qingmeijiupiao/wireless-power-components.git
-      path: components/middleware/can_resistor
-      type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   circular_flash_buffer:
     component_hash: 1bd214cc375b88dbe74a4fbfa841f9626a05d49f5d2f2d4b99d15f6394a0b931
     dependencies: []
@@ -86,7 +78,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/circular_flash_buffer
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   cpp_gpio_driver:
     component_hash: cffd9d282720a41a57c9c5be48a2878970f22bda3e861d19707f4df1d87df743
     dependencies: []
@@ -94,7 +86,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/cpp_gpio_driver
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   diagnostic_log:
     component_hash: 97f3047c739307b12a339d987de182a35f0696f61bef67020885f9d7f31f3146
     dependencies: []
@@ -102,7 +94,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/common/diagnostic_log
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   energy_meter:
     component_hash: 43f186b11f32602e44212621692a74cf35b9a6e6385f3f1cc643625bd2278050
     dependencies: []
@@ -110,7 +102,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/energy_meter
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   espnow_link:
     component_hash: cbda4d117bc9df98ea7001d978a01a43b69fa56de59e8c971da034f8d9d7b08d
     dependencies: []
@@ -118,7 +110,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/espnow_link
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   espressif/jsmn:
     component_hash: d80350c41bbaa827c98a25b6072df00884e72f54885996fab4a4f0aebce6b6c3
     dependencies:
@@ -133,6 +125,14 @@ dependencies:
     source:
       type: idf
     version: 6.0.0
+  nvs_gpio_output:
+    component_hash: 343f04ae56486099ca6a244ffc51f2d390ba5530fe111affff832e7e3705a23e
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/bsp/nvs_gpio_output
+      type: git
+    version: 3603981a47e4f29e3602806d900491508b692467
   ota_manager:
     component_hash: d063f12aec9cd26b145ac33c960cec0208671d81edba13487d7d0c5080774e8a
     dependencies: []
@@ -140,7 +140,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/ota_manager
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   shell:
     component_hash: 6141a03c15c6383367fbead105be702693c5f4812972b5f260ad56a817d8d718
     dependencies: []
@@ -148,7 +148,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/shell
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   time_service:
     component_hash: 863aa5989f644434de2fcbd1d63aa10697af53b30ad89eec10a16cf3aef8f4e7
     dependencies: []
@@ -156,7 +156,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/middleware/time_service
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   wifi_manager:
     component_hash: ed4e19eea948ad69f29a6309dd35d459d84f4fe05169fab46477fc989fb950ae
     dependencies: []
@@ -164,7 +164,7 @@ dependencies:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
       path: components/bsp/wifi_manager
       type: git
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
 direct_dependencies:
 - ADC
 - Button
@@ -175,7 +175,6 @@ direct_dependencies:
 - PWM
 - WebServer
 - blackbox
-- can_resistor
 - circular_flash_buffer
 - cpp_gpio_driver
 - diagnostic_log
@@ -183,10 +182,11 @@ direct_dependencies:
 - espnow_link
 - espressif/jsmn
 - idf
+- nvs_gpio_output
 - ota_manager
 - shell
 - time_service
 - wifi_manager
-manifest_hash: 8684a1f8eef608e49dc4308385edaf917e40f8e0a764858ebce2c95a9c8efbf0
+manifest_hash: 44a76c1f68e0af62f2eadc4c521f9f8b79fca98f60ce14dc8c8e0d7581c7a2f3
 target: esp32c6
 version: 3.0.0

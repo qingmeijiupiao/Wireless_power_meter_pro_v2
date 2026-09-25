@@ -18,76 +18,76 @@ dependencies:
   diagnostic_log:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/common/diagnostic_log
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   HXC_TWAI:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/HXC_TWAI
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   cpp_gpio_driver:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/cpp_gpio_driver
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   DNSServer:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/DNSServer
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   energy_meter:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/energy_meter
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   time_service:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/time_service
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   Interp:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/common/Interp
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   HXC_NVS:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/HXC_NVS
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   PWM:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/PWM
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   circular_flash_buffer:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/circular_flash_buffer
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   ADC:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/ADC
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   wifi_manager:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/wifi_manager
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   shell:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/shell
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   blackbox:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/blackbox
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
-  can_resistor:
+    version: 3603981a47e4f29e3602806d900491508b692467
+  nvs_gpio_output:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
-    path: components/middleware/can_resistor
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    path: components/bsp/nvs_gpio_output
+    version: 3603981a47e4f29e3602806d900491508b692467
   ota_manager:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/ota_manager
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   WebServer:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/WebServer
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   Button:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/Button
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
   espnow_link:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/espnow_link
-    version: 86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb
+    version: 3603981a47e4f29e3602806d900491508b692467
