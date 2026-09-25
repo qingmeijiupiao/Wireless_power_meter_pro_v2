@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "version": "0.2.0",
-  "published_at": "2026-09-19T08:00:45Z",
+  "version": "0.3.0",
+  "published_at": "2026-09-25T04:29:14Z",
   "firmware": {
-    "filename": "Wireless_power_meter_pro_v2_app_v0.2.0.bin",
-    "size": 1305792,
-    "url": "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@db6d5bbed7055ec5693c206048c6e0af4a92de7f/firmware/v0.2.0/Wireless_power_meter_pro_v2_app_v0.2.0.bin"
+    "filename": "Wireless_power_meter_pro_v2_app_v0.3.0.bin",
+    "size": 1305856,
+    "url": "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@1855a64c8d086072bbc600e1a5605eff6a82c66f/firmware/v0.3.0/Wireless_power_meter_pro_v2_app_v0.3.0.bin"
   }
 }
