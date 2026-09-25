@@ -298,6 +298,20 @@ bool probe_peer_on_channel(const MacAddress& peer, uint8_t channel, uint16_t wai
     return wait_for_event(PairEventType::CHANNEL_PROBE_RESPONSE, nonce, &result, wait_ms) && result.source == peer;
 }
 
+// 单次 BEST_EFFORT 探测在 WiFi 共存环境下容易丢响应。首选信道多试几次可以避免
+// 一次丢包就误判为“信道已变化”并升级为全信道扫描；扫描时每信道也重试一次。
+constexpr uint8_t PREFERRED_PROBE_ATTEMPTS = 3;
+constexpr uint8_t SCAN_PROBE_ATTEMPTS      = 2;
+
+bool probe_peer_on_channel_retry(const MacAddress& peer, uint8_t channel, uint16_t wait_ms, uint8_t attempts) {
+    for (uint8_t attempt = 0; attempt < attempts; ++attempt) {
+        if (probe_peer_on_channel(peer, channel, wait_ms)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void run_channel_recovery(const MacAddress& peer) {
     const uint16_t probe_timeout_ms  = get_channel_probe_timeout_ms(peer);
     SavedPeer      saved             = {};
@@ -308,7 +322,8 @@ void run_channel_recovery(const MacAddress& peer) {
             break;
         }
     }
-    if (preferred_channel != 0 && probe_peer_on_channel(peer, preferred_channel, probe_timeout_ms)) {
+    if (preferred_channel != 0 &&
+        probe_peer_on_channel_retry(peer, preferred_channel, probe_timeout_ms, PREFERRED_PROBE_ATTEMPTS)) {
         WiFiManager::instance().set_channel(preferred_channel);
         update_peer_channel(peer, preferred_channel);
         channel_recovery_result = ESP_OK;
@@ -322,7 +337,7 @@ void run_channel_recovery(const MacAddress& peer) {
     const uint8_t first = country.schan == 0 ? 1 : country.schan;
     const uint8_t count = country.nchan == 0 ? 13 : country.nchan;
     for (uint8_t channel = first; channel < static_cast<uint8_t>(first + count); ++channel) {
-        if (probe_peer_on_channel(peer, channel, probe_timeout_ms)) {
+        if (probe_peer_on_channel_retry(peer, channel, probe_timeout_ms, SCAN_PROBE_ATTEMPTS)) {
             WiFiManager::instance().set_channel(channel);
             update_peer_channel(peer, channel);
             channel_recovery_result = ESP_OK;

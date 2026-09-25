@@ -156,7 +156,13 @@ void update_rtt(PeerEntry* peer) {
 }
 
 void process_ack(const RxEvent& event, const ParsedFrame& frame) {
-    if (!pending.active || pending.request.options.delivery != Delivery::RELIABLE ||
+    if (!pending.active) {
+        // 事务已结束后才到达的迟到/重复 ACK（重传时对端可能对同一序号重复回 ACK）。
+        // 这类包不代表时序异常，单独计入 late_acks，避免污染 timing_errors。
+        increment_counter(&statistics.late_acks);
+        return;
+    }
+    if (pending.request.options.delivery != Delivery::RELIABLE ||
         pending.request.destination != event.source || pending.sequence != frame.correlation ||
         local_session_id != frame.sequence) {
         increment_counter(&statistics.unexpected_acks);
