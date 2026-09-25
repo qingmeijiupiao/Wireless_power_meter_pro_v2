@@ -17,7 +17,7 @@ std::future<R> start(O op=O::ON) {
     return future;
 }
 R finish(std::future<R>& future) {
-    assert(future.wait_for(2s)==std::future_status::ready);
+    assert(future.wait_for(8s)==std::future_status::ready);
     return future.get();
 }
 void off_and_cool() { assert(off(SOURCE)==R::OK); Host::cool(); }
@@ -73,12 +73,24 @@ int main() {
     assert(finish(charging)==R::OK);
     assert(std::chrono::steady_clock::now()-charging_started>=280ms);
     off_and_cool();
-    // Repeated pairs of good samples must never count as three consecutive.
-    for (int i=0;i<60;++i) Host::voltage_sequence.push_back(i%3==2 ? 5 : 200);
+    // Repeated pairs of good samples must never count as three consecutive,
+    // including across the whole multi-stage budget (fallback stays low too).
+    Host::voltage=5;
+    Host::voltage_sequence.clear();
+    for (int i=0;i<400;++i) Host::voltage_sequence.push_back(i%3==2 ? 5 : 200);
     const auto short_started=std::chrono::steady_clock::now();
     assert(on(SOURCE)==R::FAIL_SHORT_CIRCUIT);
     const auto short_elapsed=std::chrono::steady_clock::now()-short_started;
-    assert(short_elapsed>=490ms && short_elapsed<650ms && !Host::pulse);
+    assert(short_elapsed>=2900ms && short_elapsed<3600ms && !Host::pulse);
+    Host::voltage_sequence.clear();
+    Host::voltage=5;
+
+    // 已连接负载被拉低后会在激励断开时退出低阻态：第二段复测应判为开路而非短路。
+    Host::voltage=2100;
+    for (int i=0;i<25;++i) Host::voltage_sequence.push_back(5);
+    assert(on(SOURCE)==R::OK);
+    assert(get_state() && !Host::pulse);
+    off_and_cool();
     Host::voltage_sequence.clear();
     Host::voltage=5;
 
@@ -94,7 +106,7 @@ int main() {
     assert(on(SOURCE)==R::FAIL_SHORT_DETECT && !Host::pulse && !get_state());
     assert(take_failure_notice(notice) && notice.result==R::FAIL_SHORT_DETECT);
     Host::adc_error=false;
-    Host::voltage_sequence={-1,-1,-1};
+    Host::voltage_sequence={-1,-1,-1,-1,-1};
     assert(on(SOURCE)==R::FAIL_SHORT_DETECT && !Host::pulse && !get_state());
     assert(take_failure_notice(notice) && notice.result==R::FAIL_SHORT_DETECT);
     Host::disable_error=true;

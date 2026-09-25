@@ -79,7 +79,7 @@ python3 scripts/generate_font.py <字体文件> <字体大小> <字体名称>
 
 ### `check_power_output.py`
 
-`python scripts/check_power_output.py --cxx D:/mingw64/bin/g++.exe` 使用 C++20 线程模拟 RTOS/硬件，编译真实 `power_output.cpp` 与 `short_circuit_detect.cpp`。覆盖脉冲互锁、短路/ADC/清理失败、旁路变化、冷却、检测中关闭/切换/保护取消、同步和异步超时、手动检测互斥及生命周期，以及 500ms 内连续三次达标、低值重置计数。另编译真实 UIManager，验证三颗按键、同轮新通知、队列积压和双击/长按的弹窗关闭行为；另以确定性 tick/任务通知模拟验证各页面截止时间、事件提前唤醒、静态弹窗不重绘、曲线历史采样、通知洪泛下的耗时预算、慢帧跳帧以及 tick 回绕。输出在 `build_output_check/`；不能替代手板电气验收。UI 检查另生成 `12-short-circuit.png`、`13-short-check-failed.png`。
+`python scripts/check_power_output.py --cxx D:/mingw64/bin/g++.exe` 使用 C++20 线程模拟 RTOS/硬件，编译真实 `power_output.cpp` 与 `short_circuit_detect.cpp`。覆盖脉冲互锁、短路/ADC/清理失败、旁路变化、冷却、检测中关闭/切换/保护取消、同步和异步超时、手动检测互斥及生命周期，以及两段探测（只有两段都未达标才判短路、已连接负载在第二段恢复高电平）、连续三次达标提前通过与低值重置计数。另编译真实 UIManager，验证三颗按键、同轮新通知、队列积压和双击/长按的弹窗关闭行为；另以确定性 tick/任务通知模拟验证各页面截止时间、事件提前唤醒、静态弹窗不重绘、曲线历史采样、通知洪泛下的耗时预算、慢帧跳帧以及 tick 回绕。输出在 `build_output_check/`；不能替代手板电气验收。UI 检查另生成 `12-short-circuit.png`、`13-short-check-failed.png`。
 
 ### `image_converter.py`
 

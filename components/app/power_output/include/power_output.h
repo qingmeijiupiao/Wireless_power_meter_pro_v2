@@ -78,8 +78,9 @@ using CompletionCallback = std::function<void(OutputResult result, bool output_o
  */
 OutputResult request(OutputOperation op, const char* source, CompletionCallback completion = {});
 
-/** 500ms 检测窗口另留 250ms 调度/清理余量；超时取消未提交请求。 */
-constexpr uint32_t REQUEST_TIMEOUT_MS = 750;
+/** 短路检测最长约 604ms（两段采样），另留约 300ms 调度/清理余量；超时取消未提交请求。 */
+/** 短路检测最长约 3000ms（多段探测总预算），另留约 500ms 调度/清理余量；超时取消未提交请求。 */
+constexpr uint32_t REQUEST_TIMEOUT_MS = 3500;
 const char* result_to_string(OutputResult result);
 
 /** 非消费式运行快照，可由屏幕、通信等多个观察者独立读取。

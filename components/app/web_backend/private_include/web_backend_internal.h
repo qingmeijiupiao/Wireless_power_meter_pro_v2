@@ -105,6 +105,8 @@ esp_err_t provision_handler(WebServer::Request* request);
 esp_err_t state_handler(WebServer::Request* request);
 /** @brief 处理输出开关请求。 */
 esp_err_t output_handler(WebServer::Request* request);
+/** @brief 执行一次诊断短路检测，不提交主输出状态。 */
+esp_err_t short_test_handler(WebServer::Request* request);
 /** @brief 重置共享计量会话。 */
 esp_err_t meter_reset_handler(WebServer::Request* request);
 /** @brief 安排设备重启。 */

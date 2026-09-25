@@ -80,6 +80,7 @@ OTA 诊断统一使用轻量文本事件，不附加结构化状态快照。上�
 | `/api/state` | GET | 返回设备状态、保护状态、输出状态和 WiFi 状态 |
 | `/api/meter/reset` | POST | 重置屏幕与 Web 共用的电量计量基线和计量时间 |
 | `/api/output` | POST | 设置或切换输出状态 |
+| `/api/short/test` | GET/POST | 执行一次诊断短路检测，只测量、不提交输出状态 |
 | `/api/reboot` | POST | 延迟 300ms 后重启设备 |
 | `/api/system` | GET | 返回硬件版本、固件版本、当前 APP 分区、MAC 地址、构建时间和运行时间 |
 | `/api/backlight` | GET/POST | 查询或设置屏幕背光亮度 |
@@ -185,7 +186,28 @@ WebBackend::start_with_wifi_service();
 }
 ```
 
-`reason` 来自统一 `PowerOutput::result_to_string()`，包括 `protect_active`、`cooldown_active`、`not_initialized`、`short_circuit`、`short_detect_failed`、`busy`、`cancelled`、`timeout` 和 `gpio_failed`。接口等待最终结果，最多等待 750ms；超时取消尚未提交的开启。
+`reason` 来自统一 `PowerOutput::result_to_string()`，包括 `protect_active`、`cooldown_active`、`not_initialized`、`short_circuit`、`short_detect_failed`、`busy`、`cancelled`、`timeout` 和 `gpio_failed`。接口等待最终结果，最多等待 3500ms；超时取消尚未提交的开启。
+
+### GET/POST `/api/short/test`
+
+只运行一次短路检测（诊断输出事务），**绝不开启主输出**，用于远程验证检测稳定性。
+
+响应：
+
+```json
+{
+  "ok": true,
+  "is_short": true,
+  "voltage_mV": 0,
+  "min_voltage_mV": 0,
+  "threshold_mV": 200,
+  "sample_count": 176,
+  "invalid_count": 0,
+  "duration_ms": 3010
+}
+```
+
+主输出已开启或已有输出事务时返回 `{"ok":false,"reason":"busy"}`。字段对应检测组件 `ShortCircuitDetect::Result`；`is_short` 为真表示各段都未达标。该接口走诊断事务，不发布普通输出状态、失败弹窗和保护/计量快照。
 
 ### GET `/api/wifi/status`
 

@@ -24,6 +24,7 @@
 #include "hardware.h"
 #include "ota_manager.h"
 #include "power_output.h"
+#include "short_circuit_detect.h"
 #include "protect.h"
 #include "screen.h"
 #include "st7789.h"
@@ -184,6 +185,31 @@ esp_err_t output_handler(WebServer::Request* request) {
     snprintf(response_buffer, sizeof(response_buffer), "{\"ok\":%s,\"reason\":\"%s\",\"output_on\":%s}\n",
              result == PowerOutput::OutputResult::OK ? "true" : "false", output_result_to_str(result),
              PowerOutput::get_state() ? "true" : "false");
+    return WebServer::send_json(request, response_buffer);
+}
+
+/**
+ * @brief GET/POST /api/short/test
+ *
+ * 只运行一次短路检测（诊断事务），绝不提交主输出状态，供远程验证检测稳定性。
+ * 主输出已开启或已有输出事务时返回 busy。
+ */
+esp_err_t short_test_handler(WebServer::Request* request) {
+    ShortCircuitDetect::Result result = {};
+    const PowerOutput::OutputResult status = PowerOutput::test_short_circuit(result, TAG);
+    if (status != PowerOutput::OutputResult::OK && status != PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT) {
+        ESP_LOGW(TAG, "short test rejected: reason=%s", PowerOutput::result_to_string(status));
+        snprintf(response_buffer, sizeof(response_buffer), "{\"ok\":false,\"reason\":\"%s\"}\n",
+                 PowerOutput::result_to_string(status));
+        return WebServer::send_json(request, response_buffer);
+    }
+    snprintf(response_buffer, sizeof(response_buffer),
+             "{\"ok\":true,\"is_short\":%s,\"voltage_mV\":%u,\"min_voltage_mV\":%u,\"threshold_mV\":%u,"
+             "\"sample_count\":%u,\"invalid_count\":%u,\"duration_ms\":%" PRIu32 "}\n",
+             result.is_short ? "true" : "false", static_cast<unsigned>(result.voltage_mV),
+             static_cast<unsigned>(result.min_voltage_mV), static_cast<unsigned>(result.threshold_mV),
+             static_cast<unsigned>(result.sample_count), static_cast<unsigned>(result.invalid_count),
+             result.duration_ms);
     return WebServer::send_json(request, response_buffer);
 }
 

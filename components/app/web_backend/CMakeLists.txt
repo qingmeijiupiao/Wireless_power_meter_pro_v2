@@ -9,5 +9,5 @@ idf_component_register(
          "src/ota_handlers.cpp"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "private_include"
-    REQUIRES WebServer web_file wifi_service espnow_link espnow_service diagnostic_log global_state power_output protect esp_timer esp_system esp_http_server st7789_driver can_callback current_calibration hardware esp_app_format jsmn energy_meter ota_manager ota_service blackbox_service screen
+    REQUIRES WebServer web_file wifi_service espnow_link espnow_service diagnostic_log global_state power_output short_circuit_detect protect esp_timer esp_system esp_http_server st7789_driver can_callback current_calibration hardware esp_app_format jsmn energy_meter ota_manager ota_service blackbox_service screen
 )

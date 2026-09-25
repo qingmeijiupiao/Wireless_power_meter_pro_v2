@@ -20,6 +20,8 @@ namespace {
 constexpr char     TAG[]                = "ShortDetect";
 constexpr char     THRESHOLD_NVS_KEY[]  = "short_th_mv";
 constexpr uint32_t SETTLE_TIME_MS       = 2;
+// 复测段至少要能采到 REQUIRED_GOOD_SAMPLES 个样本，否则不再做一次无意义的断开。
+constexpr uint32_t MIN_CONFIRM_MS       = 40;
 
 HXC::NVS_DATA<uint16_t> threshold_mV(THRESHOLD_NVS_KEY, DEFAULT_THRESHOLD_MV);
 bool                    initialized = false;
@@ -72,6 +74,52 @@ class TestPulseGuard {
 
 } // namespace
 
+/** 在单个时间窗口内采样，直到连续 REQUIRED_GOOD_SAMPLES 次达到阈值。 */
+static esp_err_t run_probe(Result& result, uint32_t window_ms, CancelCheck cancelled, void* context, bool& passed) {
+    passed = false;
+    const int64_t deadline_us = esp_timer_get_time() + static_cast<int64_t>(window_ms) * 1000;
+    uint8_t consecutive_good = 0;
+    uint8_t consecutive_invalid = 0;
+    while (esp_timer_get_time() < deadline_us) {
+        if (cancelled && cancelled(context)) return ESP_ERR_INVALID_STATE;
+        int voltage_mV = 0;
+        const esp_err_t err = read_short_detect_voltage_mV(voltage_mV);
+        if (err != ESP_OK || voltage_mV < 0) {
+            const esp_err_t sample_error = err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
+            // 读取失败不代表短路，不打断已累计的达标样本；只有有效低电压才清零。
+            ++consecutive_invalid;
+            ++result.invalid_count;
+            ESP_LOGD(TAG, "invalid ADC sample retry=%u/%u error=%s voltage=%d mV",
+                     static_cast<unsigned>(consecutive_invalid),
+                     static_cast<unsigned>(MAX_CONSECUTIVE_INVALID_SAMPLES),
+                     esp_err_to_name(sample_error), voltage_mV);
+            if (consecutive_invalid >= MAX_CONSECUTIVE_INVALID_SAMPLES) {
+                // 最终故障及重试统计由输出仲裁层统一记录。
+                return sample_error;
+            }
+            const int64_t remaining_ms = (deadline_us - esp_timer_get_time()) / 1000;
+            if (remaining_ms <= 0) break;
+            vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
+            continue;
+        }
+        // 超过采样窗口才返回的 ADC 样本不能用于判定通过。
+        if (esp_timer_get_time() >= deadline_us) break;
+        consecutive_invalid = 0;
+        result.voltage_mV = static_cast<uint16_t>(voltage_mV);
+        if (result.voltage_mV < result.min_voltage_mV) result.min_voltage_mV = result.voltage_mV;
+        ++result.sample_count;
+        consecutive_good = voltage_mV >= result.threshold_mV ? consecutive_good + 1 : 0;
+        if (consecutive_good >= REQUIRED_GOOD_SAMPLES) {
+            passed = true;
+            break;
+        }
+        const int64_t remaining_ms = (deadline_us - esp_timer_get_time()) / 1000;
+        if (remaining_ms <= 0) break;
+        vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
+    }
+    return ESP_OK;
+}
+
 static esp_err_t init_unlocked() {
     if (initialized) {
         return ESP_OK;
@@ -107,56 +155,45 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
     result.min_voltage_mV = UINT16_MAX;
     result.is_short       = true;
     if (cancelled && cancelled(context)) return ESP_ERR_INVALID_STATE;
+
     TestPulseGuard pulse;
     const int64_t deadline_us = esp_timer_get_time() + static_cast<int64_t>(MAX_TEST_TIME_MS) * 1000;
+    bool passed = false;
+
     err = pulse.enable();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "failed to enable test pulse: %s", esp_err_to_name(err));
         return err;
     }
-
     vTaskDelay(pdMS_TO_TICKS(SETTLE_TIME_MS));
+    err = run_probe(result, FIRST_PROBE_MS, cancelled, context, passed);
+    if (err != ESP_OK) return err;
 
-    uint8_t consecutive_good = 0;
-    uint8_t consecutive_invalid = 0;
-    while (esp_timer_get_time() < deadline_us) {
-        if (cancelled && cancelled(context)) return ESP_ERR_INVALID_STATE;
-        int voltage_mV = 0;
-        err            = read_short_detect_voltage_mV(voltage_mV);
-        if (err != ESP_OK || voltage_mV < 0) {
-            const esp_err_t sample_error = err != ESP_OK ? err : ESP_ERR_INVALID_RESPONSE;
-            // 读取失败不代表短路，不打断已累计的达标样本；只有有效低电压才清零。
-            ++consecutive_invalid;
-            ++result.invalid_count;
-            ESP_LOGD(TAG, "invalid ADC sample retry=%u/%u error=%s voltage=%d mV",
-                     static_cast<unsigned>(consecutive_invalid),
-                     static_cast<unsigned>(MAX_CONSECUTIVE_INVALID_SAMPLES),
-                     esp_err_to_name(sample_error), voltage_mV);
-            if (consecutive_invalid >= MAX_CONSECUTIVE_INVALID_SAMPLES) {
-                // 最终故障及重试统计由输出仲裁层统一记录。
-                return sample_error;
-            }
-            const int64_t remaining_ms = (deadline_us - esp_timer_get_time()) / 1000;
-            if (remaining_ms <= 0) break;
-            vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
-            continue;
-        }
-        // 超过检测窗口才返回的 ADC 样本不能用于判定通过。
-        if (esp_timer_get_time() >= deadline_us) break;
-        consecutive_invalid = 0;
-        result.voltage_mV = static_cast<uint16_t>(voltage_mV);
-        if (result.voltage_mV < result.min_voltage_mV) result.min_voltage_mV = result.voltage_mV;
-        ++result.sample_count;
-        consecutive_good = voltage_mV >= result.threshold_mV ? consecutive_good + 1 : 0;
-        if (consecutive_good >= REQUIRED_GOOD_SAMPLES) {
-            result.is_short = false;
-            break;
-        }
+    // 可疑（仍为低电平）时反复“断开激励 → 复测”，给低启动电压/低阻负载退出低阻态
+    // 的机会，直到用完总预算；任一复测段连续三次达标即判开路。
+    while (!passed) {
         const int64_t remaining_ms = (deadline_us - esp_timer_get_time()) / 1000;
-        if (remaining_ms <= 0) break;
-        vTaskDelay(pdMS_TO_TICKS(std::min<int64_t>(SAMPLE_INTERVAL_MS, remaining_ms)));
+        if (remaining_ms <= static_cast<int64_t>(RELEASE_GAP_MS) + static_cast<int64_t>(MIN_CONFIRM_MS)) break;
+        err = pulse.disable();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "failed to disable test pulse: %s", esp_err_to_name(err));
+            return err;
+        }
+        vTaskDelay(pdMS_TO_TICKS(RELEASE_GAP_MS));
+        err = pulse.enable();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "failed to enable confirmation pulse: %s", esp_err_to_name(err));
+            return err;
+        }
+        vTaskDelay(pdMS_TO_TICKS(SETTLE_TIME_MS));
+        const int64_t window_ms = (deadline_us - esp_timer_get_time()) / 1000;
+        if (window_ms <= 0) break;
+        const uint32_t probe_window = std::min<uint32_t>(CONFIRM_WINDOW_MS, static_cast<uint32_t>(window_ms));
+        err = run_probe(result, probe_window, cancelled, context, passed);
+        if (err != ESP_OK) return err;
     }
 
+    result.is_short = !passed;
     if (result.sample_count == 0) result.min_voltage_mV = 0;
 
     err = pulse.disable();

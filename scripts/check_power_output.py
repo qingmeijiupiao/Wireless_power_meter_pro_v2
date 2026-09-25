@@ -33,7 +33,7 @@ def main():
                str(ROOT / 'components/middleware/short_circuit_detect/src/short_circuit_detect.cpp'),
                '-o', str(out / 'output_check.exe')]
     subprocess.run(command, check=True)
-    subprocess.run([str(out / 'output_check.exe')], check=True, timeout=30)
+    subprocess.run([str(out / 'output_check.exe')], check=True, timeout=120)
     for name in ('Button.h', 'screen.h', 'freertos/queue.h', 'st7789.h',
                  'config/display_config.h', 'pages/curve/curve_history.h', 'widgets/ui_chrome.h'):
         header = out / name

@@ -16,10 +16,21 @@ constexpr uint16_t DEFAULT_THRESHOLD_MV = 200;
 
 /** 允许配置的最大阈值，受 ADC 输入量程限制。 */
 constexpr uint16_t MAX_THRESHOLD_MV = 3300;
-constexpr uint32_t MAX_TEST_TIME_MS = 500;
+
+/**
+ * 检测分多段：先用 FIRST_PROBE_MS 判定；若仍为低电平，则反复“断开激励
+ * RELEASE_GAP_MS → 复测 CONFIRM_WINDOW_MS”，给低启动电压 / 大电容 / 低阻
+ * 负载退出低阻态的机会，直到用完 MAX_TEST_TIME_MS 预算。任一段连续三次达标即
+ * 判开路；全程低电平才判短路。真实短路在各段都保持低电平，负载可能在后段恢复。
+ * 好负载仍在第一段提前通过，不增加等待；只有可疑时才逐步用满总预算。
+ */
+constexpr uint32_t MAX_TEST_TIME_MS = 3000;
+constexpr uint32_t FIRST_PROBE_MS = 500;
+constexpr uint32_t RELEASE_GAP_MS = 250;
+constexpr uint32_t CONFIRM_WINDOW_MS = 250;
 constexpr uint32_t SAMPLE_INTERVAL_MS = 10;
 constexpr uint8_t REQUIRED_GOOD_SAMPLES = 3;
-constexpr uint8_t MAX_CONSECUTIVE_INVALID_SAMPLES = 3;
+constexpr uint8_t MAX_CONSECUTIVE_INVALID_SAMPLES = 5;
 
 /** 单次短路检测结果。 */
 struct Result {
@@ -29,7 +40,7 @@ struct Result {
     uint16_t sample_count; /**< 有效采样总数。 */
     uint16_t invalid_count; /**< 无效采样总数，包含已恢复的瞬时错误。 */
     uint32_t duration_ms; /**< 检测调用耗时，包含清理；由退出守卫填写。 */
-    bool     is_short;     /**< 500ms 内未获得连续三次达标采样。 */
+    bool     is_short;     /**< 各段探测内均未获得连续三次达标采样。 */
 };
 
 /**
@@ -53,10 +64,12 @@ esp_err_t ensure_idle();
  * @return ESP_OK 检测完成；其他值表示 GPIO 或 ADC 操作失败。
  */
 using CancelCheck = bool (*)(void* context);
-/** 激励最长 500ms，间隔 10ms 采样，连续三次 >= 阈值即提前通过；有效低电压清零计数。
- * ADC 读取错误或负电压计入 invalid_count 并重试，但不打断达标计数；连续三次无效才返回检测错误。
- * 结果同时给出窗口内最低有效电压 min_voltage_mV，供失败原因展示。取消检查在采样间执行，
- * 取消返回 ESP_ERR_INVALID_STATE，并清理激励。
+/** 分多段探测：先跑 FIRST_PROBE_MS，遇连续三次 >= 阈值即提前通过；否则反复
+ * “断开激励 RELEASE_GAP_MS → 复测 CONFIRM_WINDOW_MS”，直到用完 MAX_TEST_TIME_MS
+ * 总预算，仅全程都未达标才判为短路。每段间隔 SAMPLE_INTERVAL_MS 采样。ADC 读取
+ * 错误或负电压计入 invalid_count 并重试，但不打断达标计数；连续三次无效才返回
+ * 检测错误。结果同时给出整个检测期间最低有效电压 min_voltage_mV，供失败原因展示。
+ * 取消检查在各段采样间执行，取消返回 ESP_ERR_INVALID_STATE，并清理激励。
  */
 esp_err_t test(Result& result, CancelCheck cancelled = nullptr, void* context = nullptr);
 
