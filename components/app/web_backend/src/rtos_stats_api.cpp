@@ -2,8 +2,8 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <new>
 
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -83,11 +83,12 @@ void set_error_state() {
 
 void sample_task(void*) {
     // 两份任务快照仅在采样窗口内使用，按需分配可避免长期占用约 3.8KB 静态 RAM。
-    TaskStatus_t* before_tasks = new (std::nothrow) TaskStatus_t[MAX_RTOS_TASKS];
-    TaskStatus_t* after_tasks  = new (std::nothrow) TaskStatus_t[MAX_RTOS_TASKS];
+    // 使用可失败的 malloc，避免低内存时 C++ new 走异常/abort 路径。
+    TaskStatus_t* before_tasks = static_cast<TaskStatus_t*>(malloc(sizeof(TaskStatus_t) * MAX_RTOS_TASKS));
+    TaskStatus_t* after_tasks  = static_cast<TaskStatus_t*>(malloc(sizeof(TaskStatus_t) * MAX_RTOS_TASKS));
     if (before_tasks == nullptr || after_tasks == nullptr) {
-        delete[] before_tasks;
-        delete[] after_tasks;
+        free(before_tasks);
+        free(after_tasks);
         set_error_state();
         vTaskDelete(nullptr);
         return;
@@ -97,8 +98,8 @@ void sample_task(void*) {
     configRUN_TIME_COUNTER_TYPE after_total  = 0;
     const UBaseType_t           before_count = uxTaskGetSystemState(before_tasks, MAX_RTOS_TASKS, &before_total);
     if (before_count == 0) {
-        delete[] before_tasks;
-        delete[] after_tasks;
+        free(before_tasks);
+        free(after_tasks);
         set_error_state();
         vTaskDelete(nullptr);
         return;
@@ -112,8 +113,8 @@ void sample_task(void*) {
 
     const UBaseType_t after_count = uxTaskGetSystemState(after_tasks, MAX_RTOS_TASKS, &after_total);
     if (after_count == 0) {
-        delete[] before_tasks;
-        delete[] after_tasks;
+        free(before_tasks);
+        free(after_tasks);
         set_error_state();
         vTaskDelete(nullptr);
         return;
@@ -153,8 +154,8 @@ void sample_task(void*) {
     result_count        = count;
     sample_state        = SampleState::READY;
     taskEXIT_CRITICAL(&stats_mux);
-    delete[] before_tasks;
-    delete[] after_tasks;
+    free(before_tasks);
+    free(after_tasks);
     vTaskDelete(nullptr);
 }
 

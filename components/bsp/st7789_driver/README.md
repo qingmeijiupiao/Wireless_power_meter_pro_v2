@@ -1,18 +1,21 @@
 # st7789_driver
 
-ST7789V TFT 显示屏（1.14" 240×135）SPI 驱动，提供像素绘制、矩形填充、等高变宽字体文本渲染、图像绘制及双缓冲同步等能力。
+ST7789V TFT 显示屏（1.14" 240×135）SPI 驱动，提供像素绘制、矩形填充、等高变宽字体文本渲染、图像绘制及帧缓冲同步等能力。
 
 横屏偏移为 `COLSTART=40`、`ROWSTART=52`，以 `st7789.h` 为准；修改偏移后需检查正常/180°横屏实物边缘。
 文本支持ASCII 32–126，其余字节替换为问号；字形在右/下边缘裁剪，图片裁剪保留源图行跨度。
 
 ## 模块特点
 
-- **双缓冲**：内置两帧全屏缓冲区，绘制完成后调用 `sync_buffers()` 按最多32768字节分块同步传输当前帧，再切换缓冲；实际面板撕裂需实物验证
+- **帧缓冲**：当前 `FRAME_BUFFER_COUNT=1`，全屏 RGB565 占用 64,800 B；`sync_buffers()` 按最多32768字节分块同步传输，返回后 UI 任务可继续复用该帧。原全屏双缓冲会再多占 64,800 B，曾导致联网后 DMA 堆余量不足 1 KiB
 - **RGB565 色彩**：`color_t` 类支持 RGB 三通道 / HEX 构造，自动转 RGB565 小/大端序
 - **基础图元**：支持像素、矩形、圆角矩形和 Bresenham 整数直线绘制
 - **等高变宽字体**：通过 `Font_t` 结构支持不等宽字符渲染，含抗锯齿插值（`map_px_data`）
 - **四方向旋转**：`Vertical / Horizontal / VerticalMirror / HorizontalMirror`
 - **50 MHz SPI**：使用 `spi_device_polling_transmit` 轮询传输，低延迟
+
+当前单缓冲是经网络内存 A/B 验证的正式显示契约。绘制与同步必须由同一 UI 任务串行调用；
+改为异步传输或多个任务绘制前，应重新设计缓冲所有权。面板撕裂、全部页面及弹窗仍需实物回归。
 
 ## 架构与原理
 
@@ -59,9 +62,9 @@ ST7789::set_backlight(200);
 | `draw_char(x, y, c, color, bg, font)` | 绘制单字符（`const Font_t&`） |
 | `draw_string(x, y, str, color, bg, font)` | 绘制字符串（`const Font_t&`） |
 | `draw_image(x, y, w, h, data)` | 绘制 RGB565 图像 |
-| `sync_buffers()` | 将当前缓冲区刷至屏幕，切换缓冲区 |
-| `switch_buffers()` | 切换当前显示缓冲区 |
-| `copy_buffers()` | 复制当前缓冲区内容到另一个缓冲区 |
+| `sync_buffers()` | 将当前缓冲区同步刷至屏幕；单缓冲配置下不切换 |
+| `switch_buffers()` | 单缓冲配置下为空操作；双缓冲配置下切换 |
+| `copy_buffers()` | 单缓冲配置下为空操作；双缓冲配置下复制到另一帧 |
 | `set_rotation(rotation)` | 设置旋转方向 |
 | `invert_display(invert)` | 颜色反转 |
 | `set_backlight(brightness)` | 设置背光亮度（0-255） |

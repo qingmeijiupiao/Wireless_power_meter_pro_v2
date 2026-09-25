@@ -190,7 +190,7 @@ void UIManager::loop_once() {
     const TickType_t frame_started = xTaskGetTickCount();
     if (protection_dialog_active_) {
         if (dialog_dirty_) {
-            // 弹窗期间冻结背景；两个帧缓冲保留合成画面，更新文字不需重绘背景。
+            // 弹窗期间冻结背景；帧缓冲保留合成画面，更新文字不需重绘背景。
             if (dialog_needs_background_) page->render(RenderMode::Full);
             UI::short_circuit_dialog(protection_notice_.result == PowerOutput::OutputResult::FAIL_SHORT_CIRCUIT,
                                      protection_notice_.voltage_mV, protection_notice_.threshold_mV);

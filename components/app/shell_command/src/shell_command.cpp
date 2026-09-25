@@ -2,6 +2,7 @@
 #include "shell.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "hardware.h"
 #include "st7789.h"
@@ -30,7 +31,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <vector>
 
 namespace ShellCommand {
 
@@ -86,6 +86,28 @@ static bool parse_float_arg(const char* text, float* out) {
     return true;
 }
 
+// 任务快照按需分配；分配失败返回 false，避免低内存时 C++ new 触发 abort。
+struct TaskSnapshot {
+    TaskStatus_t*               tasks         = nullptr;
+    UBaseType_t                 count         = 0;
+    configRUN_TIME_COUNTER_TYPE total_runtime = 0;
+
+    bool take() {
+        const size_t capacity = static_cast<size_t>(uxTaskGetNumberOfTasks()) + 4;
+        tasks                 = static_cast<TaskStatus_t*>(malloc(capacity * sizeof(TaskStatus_t)));
+        if (tasks == nullptr) {
+            return false;
+        }
+        count = uxTaskGetSystemState(tasks, static_cast<UBaseType_t>(capacity), &total_runtime);
+        return count > 0;
+    }
+
+    ~TaskSnapshot() { free(tasks); }
+    TaskSnapshot()                               = default;
+    TaskSnapshot(const TaskSnapshot&)            = delete;
+    TaskSnapshot& operator=(const TaskSnapshot&) = delete;
+};
+
 // ====== 命令列表 ======
 
 esp_err_t init() {
@@ -118,6 +140,35 @@ esp_err_t init() {
             return 0;
         }));
 
+    /**
+     * @brief  heap_stats - 输出各内存能力集合的堆余量和最大连续块
+     * @usage  heap_stats
+     * @note   不创建任务快照；能力集合重叠，输出值不可相加。
+     */
+    shell.register_command(ShellCommand_t(
+        "heap_stats", "Print heap capacity without allocating a task snapshot", "",
+        [](int argc, char** argv) -> int {
+            // 固定局部结构；低内存现场不要用动态容器采集诊断信息。
+            auto print_heap = [](const char* name, uint32_t caps) {
+                multi_heap_info_t info = {};
+                heap_caps_get_info(&info, caps);
+                printf("HEAP %s free=%u min_free=%u largest=%u allocated=%u free_blocks=%u\n", name,
+                       static_cast<unsigned>(info.total_free_bytes),
+                       static_cast<unsigned>(info.minimum_free_bytes),
+                       static_cast<unsigned>(info.largest_free_block),
+                       static_cast<unsigned>(info.total_allocated_bytes),
+                       static_cast<unsigned>(info.free_blocks));
+            };
+            printf("HEAP_STATS_BEGIN uptime_ms=%" PRId64 " tasks=%" PRIu32 "\n",
+                   static_cast<int64_t>(esp_timer_get_time() / 1000),
+                   static_cast<uint32_t>(uxTaskGetNumberOfTasks()));
+            print_heap("8bit", MALLOC_CAP_8BIT);
+            print_heap("internal_8bit", MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            print_heap("dma", MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+            printf("HEAP_STATS_END (capability groups overlap; do not sum)\n");
+            return 0;
+        }));
+
     shell.register_command(ShellCommand_t(
         "rtos_stats", "Sample per-task CPU usage and stack high-water marks", "[seconds]",
         [](int argc, char** argv) -> int {
@@ -127,31 +178,34 @@ esp_err_t init() {
                 return 1;
             }
 
-            auto snapshot = []() {
-                std::vector<TaskStatus_t>   tasks(uxTaskGetNumberOfTasks() + 4);
-                configRUN_TIME_COUNTER_TYPE total_runtime = 0;
-                UBaseType_t                 count = uxTaskGetSystemState(tasks.data(), tasks.size(), &total_runtime);
-                tasks.resize(count);
-                return std::make_pair(std::move(tasks), total_runtime);
-            };
+            TaskSnapshot before;
+            if (!before.take()) {
+                printf("rtos_stats: insufficient heap for task snapshot\n");
+                return 1;
+            }
 
-            auto before = snapshot();
             printf("Sampling RTOS statistics for %d second(s)...\n", sample_seconds);
             vTaskDelay(pdMS_TO_TICKS(sample_seconds * 1000));
-            auto                              after       = snapshot();
-            const configRUN_TIME_COUNTER_TYPE total_delta = after.second - before.second;
+
+            TaskSnapshot after;
+            if (!after.take()) {
+                printf("rtos_stats: insufficient heap for task snapshot\n");
+                return 1;
+            }
+            const configRUN_TIME_COUNTER_TYPE total_delta = after.total_runtime - before.total_runtime;
 
             printf("RTOS_STATS_BEGIN sample_s=%d tasks=%" PRIu32 " total_delta=%" PRIu64 "\n", sample_seconds,
-                   static_cast<uint32_t>(after.first.size()), static_cast<uint64_t>(total_delta));
+                   static_cast<uint32_t>(after.count), static_cast<uint64_t>(total_delta));
             printf("%-16s %5s %4s %9s %14s %14s %14s\n", "TASK", "STATE", "PRIO", "CPU(%)", "RUNTIME_DELTA",
                    "RUNTIME_TOTAL", "STACK_FREE_MIN");
             printf("---------------- ----- ---- --------- -------------- -------------- --------------\n");
-            for (const auto& task : after.first) {
-                auto previous =
-                    std::find_if(before.first.begin(), before.first.end(),
+            for (UBaseType_t i = 0; i < after.count; ++i) {
+                const TaskStatus_t& task = after.tasks[i];
+                auto                 previous =
+                    std::find_if(before.tasks, before.tasks + before.count,
                                  [&task](const TaskStatus_t& item) { return item.xTaskNumber == task.xTaskNumber; });
                 const configRUN_TIME_COUNTER_TYPE runtime_delta =
-                    previous == before.first.end() ? 0 : task.ulRunTimeCounter - previous->ulRunTimeCounter;
+                    previous == before.tasks + before.count ? 0 : task.ulRunTimeCounter - previous->ulRunTimeCounter;
                 const double cpu_pct =
                     total_delta == 0 ? 0.0
                                      : 100.0 * static_cast<double>(runtime_delta) / static_cast<double>(total_delta);

@@ -186,17 +186,17 @@ uint16_t get_height(void);
 void draw_image(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data);
 
 /**
- * @brief 同步双缓冲区，将当前缓冲区的内容发送到显示屏
+ * @brief 将当前帧同步发送到显示屏；返回后调用任务可继续绘制
  */
 void sync_buffers();
 
 /**
- * @brief 切换当前显示缓冲区
+ * @brief 双帧配置下切换当前显示缓冲区；单帧配置下为空操作
  */
 void switch_buffers();
 
 /**
- * @brief 复制当前缓冲区内容到另一个缓冲区
+ * @brief 双帧配置下复制到另一缓冲区；单帧配置下为空操作
  */
 void copy_buffers();
 

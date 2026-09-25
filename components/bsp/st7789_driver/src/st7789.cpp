@@ -38,8 +38,12 @@ static uint8_t                               current_brightness    = 0;
 static bool                                  backlight_initialized = false;
 static bool                                  bl_active_low         = false;
 
+// 显示契约：单帧全屏 RGB565 缓冲，由同一个 UI 任务串行绘制并同步发送。
+// Pro V2 双帧会多占 64,800 B 静态 RAM，联网后曾挤占 Wi-Fi 所需的 DMA 堆。
+// 保持 FRAME_BUFFER_COUNT=1；改为双帧或异步 DMA/多任务绘制前必须重新设计缓冲所有权。
+static constexpr size_t FRAME_BUFFER_COUNT = 1;
 struct double_buffer_t {
-    uint16_t data[2][WIDTH * HEIGHT];
+    uint16_t data[FRAME_BUFFER_COUNT][WIDTH * HEIGHT];
     uint8_t  current_buffer = 0;
 } double_buffer;
 
@@ -91,12 +95,16 @@ static void set_address_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y
 }
 
 void switch_buffers() {
-    double_buffer.current_buffer = 1 - double_buffer.current_buffer;
+    if constexpr (FRAME_BUFFER_COUNT == 2) {
+        double_buffer.current_buffer = 1 - double_buffer.current_buffer;
+    }
 }
 
 void copy_buffers() {
-    memcpy(double_buffer.data[1 - double_buffer.current_buffer], double_buffer.data[double_buffer.current_buffer],
-           display_width * display_height * 2);
+    if constexpr (FRAME_BUFFER_COUNT == 2) {
+        memcpy(double_buffer.data[1 - double_buffer.current_buffer], double_buffer.data[double_buffer.current_buffer],
+               display_width * display_height * 2);
+    }
 }
 
 void sync_buffers() {
