@@ -15,7 +15,7 @@ set(EXTRA_COMPONENT_DIRS
 
 # 版本号 MAJOR.MINOR 由开发者修改
 set(VERSION_MAJOR 0 CACHE STRING "Major version")
-set(VERSION_MINOR 2 CACHE STRING "Minor version")
+set(VERSION_MINOR 3 CACHE STRING "Minor version")
 # PATCH 区分本地/CD 不要修改
 set(VERSION_PATCH 99 CACHE STRING "Patch version (99=local, 0=CD)")
 
