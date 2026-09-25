@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>趋势曲线 - Wireless Power Meter Pro V2</title>
   <link rel="stylesheet" href="/app.css">
-  <!-- Bring-up 阶段禁用公网 Chart.js，后续改为固件内置资源后恢复。 -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script> -->
+  <!-- 曲线由页面内置的轻量 Canvas 渲染器绘制，不依赖任何公网脚本。 -->
 </head>
 
 <body>
@@ -57,7 +56,6 @@
           </select>
         </div>
       </div>
-      <div class="notice" id="chartError" hidden>曲线库加载失败，实时曲线不可用；其他页面不受影响。</div>
       <div class="chart-grid" id="chartGrid">
         <div class="card">
           <div class="card-title"><strong>电压</strong><span class="sub" id="vNow">-- V</span></div>
@@ -86,34 +84,144 @@
     let maxWindowMs = 30000;
     let timer = null;
     const fmt = (n, d) => Number.isFinite(n) ? Number(n).toFixed(d) : '--';
+
+    function niceNum(range, round) {
+      if (!(range > 0)) return 1;
+      const exp = Math.floor(Math.log10(range));
+      const frac = range / Math.pow(10, exp);
+      let nice;
+      if (round) nice = frac < 1.5 ? 1 : frac < 3 ? 2 : frac < 7 ? 5 : 10;
+      else nice = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
+      return nice * Math.pow(10, exp);
+    }
+    function niceTicks(min, max, count) {
+      const step = niceNum(niceNum(max - min, false) / Math.max(1, count - 1), true);
+      const start = Math.floor(min / step) * step;
+      const end = Math.ceil(max / step) * step;
+      const ticks = [];
+      for (let v = start; v <= end + step * 0.5; v += step) ticks.push(Number(v.toFixed(12)));
+      return ticks.length > 1 ? ticks : [min, max];
+    }
+    function formatTick(v) {
+      const a = Math.abs(v);
+      if (a >= 100) return v.toFixed(0);
+      if (a >= 1) return v.toFixed(1);
+      if (a >= 0.01) return v.toFixed(2);
+      return Number(v.toPrecision(2)).toString();
+    }
+
+    class LineChart {
+      constructor(canvas, color) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.color = color;
+        this.labels = [];
+        this.data = [];
+        this.resize();
+      }
+      resize() {
+        const box = this.canvas.parentElement;
+        const w = Math.max(1, box.clientWidth);
+        const h = Math.max(1, box.clientHeight);
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = Math.round(w * dpr);
+        this.canvas.height = Math.round(h * dpr);
+        this.canvas.style.width = w + 'px';
+        this.canvas.style.height = h + 'px';
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.w = w;
+        this.h = h;
+      }
+      set(labels, data) {
+        this.labels = labels;
+        this.data = data;
+        this.draw();
+      }
+      draw() {
+        const ctx = this.ctx, w = this.w, h = this.h;
+        ctx.clearRect(0, 0, w, h);
+        const padL = 46, padR = 8, padT = 10, padB = 22;
+        const plotW = Math.max(1, w - padL - padR);
+        const plotH = Math.max(1, h - padT - padB);
+        let min = Infinity, max = -Infinity;
+        for (const v of this.data) {
+          if (Number.isFinite(v)) { if (v < min) min = v; if (v > max) max = v; }
+        }
+        if (!Number.isFinite(min)) { min = 0; max = 1; }
+        if (min === max) { const pad = Math.abs(min) * 0.1 + 0.1; min -= pad; max += pad; }
+        const ticks = niceTicks(min, max, 5);
+        min = ticks[0];
+        max = ticks[ticks.length - 1];
+
+        ctx.font = '11px Inter,Arial,"Microsoft YaHei",sans-serif';
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#eef2f7';
+        ctx.fillStyle = '#98a2b3';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (const tv of ticks) {
+          const y = padT + plotH * (1 - (tv - min) / (max - min));
+          ctx.beginPath();
+          ctx.moveTo(padL, y);
+          ctx.lineTo(padL + plotW, y);
+          ctx.stroke();
+          ctx.fillText(formatTick(tv), padL - 6, y);
+        }
+
+        const n = this.data.length;
+        if (n > 1) {
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          const count = Math.min(6, n);
+          for (let i = 0; i < count; i++) {
+            const idx = Math.round(i * (n - 1) / (count - 1));
+            const x = padL + plotW * i / (count - 1);
+            ctx.fillText(this.labels[idx] || '', x, padT + plotH + 6);
+          }
+        }
+        if (n < 2) return;
+
+        const px = i => padL + plotW * i / (n - 1);
+        const py = v => padT + plotH * (1 - (v - min) / (max - min));
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const x = px(i), y = py(this.data[i]);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        ctx.lineTo(px(n - 1), padT + plotH);
+        ctx.lineTo(px(0), padT + plotH);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+        grad.addColorStop(0, this.color + '33');
+        grad.addColorStop(1, this.color + '00');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(px(n - 1), py(this.data[n - 1]), 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
     async function api(url) {
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     }
-    function makeChart(id, label, color) {
-      return new Chart($(id), {
-        type: 'line',
-        data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: color + '22', fill: true, tension: .25, pointRadius: 0, borderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 6 } }, y: { beginAtZero: false } } }
-      });
-    }
     function initCharts() {
-      if (!window.Chart) {
-        $('chartGrid').hidden = true;
-        $('chartError').hidden = false;
-        return;
-      }
-      charts.voltage = makeChart('chartVoltage', '电压(V)', '#dc2626');
-      charts.current = makeChart('chartCurrent', '电流(A)', '#16a34a');
-      charts.power = makeChart('chartPower', '功率(W)', '#2563eb');
-      charts.temp = makeChart('chartTemp', '板温(C)', '#d97706');
+      charts.voltage = new LineChart($('chartVoltage'), '#dc2626');
+      charts.current = new LineChart($('chartCurrent'), '#16a34a');
+      charts.power = new LineChart($('chartPower'), '#2563eb');
+      charts.temp = new LineChart($('chartTemp'), '#d97706');
     }
     function setChart(chart, labels, data) {
-      if (!chart) return;
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = data;
-      chart.update('none');
+      if (chart) chart.set(labels, data);
     }
     function trimSamples() {
       const now = Date.now();
@@ -146,7 +254,8 @@
       if (timer) clearInterval(timer);
       timer = setInterval(() => loadState().catch(() => $('topStatus').textContent = '状态读取失败'), Number($('sampleRate').value));
     }
-    window.addEventListener('load', () => { setTimeout(initCharts, 200); loadState().catch(() => { }); restart(); });
+    window.addEventListener('load', () => { setTimeout(initCharts, 0); loadState().catch(() => { }); restart(); });
+    window.addEventListener('resize', () => { for (const chart of Object.values(charts)) { chart.resize(); chart.draw(); } });
     $('sampleRate').onchange = restart;
     $('historyWindow').onchange = () => { maxWindowMs = Number($('historyWindow').value); trimSamples(); loadState().catch(() => { }); };
   </script>

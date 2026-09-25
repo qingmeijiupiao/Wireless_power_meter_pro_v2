@@ -49,9 +49,9 @@ flowchart TD
 | `provision_html_file` | `provision.html` | AP 配网页 |
 | `app_css_file` | `app.css` | 公共样式 |
 
-`charts.html` 使用在线 Chart.js。所有页面侧栏底部使用 jsDelivr 的在线 GitHub SVG
-图标并链接到项目仓库；图标加载失败不影响导航和文字链接。固件页的最新固件下载链接
-指向 `firmware-dist/ota/latest.bin`，该文件由 Release 工作流随每个版本更新。
+`charts.html` 的趋势曲线由页面内置的轻量 Canvas 渲染器绘制，不依赖在线 Chart.js
+或其他公网脚本，离线局域网也能正常显示。固件页的最新固件下载链接指向
+`firmware-dist/ota/latest.bin`，该文件由 Release 工作流随每个版本更新。
 
 ## 使用方式
 
