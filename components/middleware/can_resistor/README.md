@@ -32,7 +32,7 @@ CAN 终端电阻控制中间件。封装终端电阻使能 GPIO、状态持久�
 
 工程内直接依赖：
 
-- [`cpp_gpio_driver`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/bsp/cpp_gpio_driver/README.md)（`bsp`）
+- [`cpp_gpio_driver`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/bsp/cpp_gpio_driver/README.md)（`bsp`）
 - [`HXC_NVS`](../../bsp/HXC_NVS/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。

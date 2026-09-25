@@ -151,13 +151,13 @@ wifi clear
 
 - [`espnow_service`](../espnow_service/README.md)（`app`）
 - [`global_state`](../global_state/README.md)（`app`）
-- [`DNSServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/DNSServer/README.md)（`middleware`）
+- [`DNSServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/middleware/DNSServer/README.md)（`middleware`）
 - [`espnow_link`](../../middleware/espnow_link/README.md)（`middleware`）
-- [`time_service`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/time_service/README.md)（`middleware`）
+- [`time_service`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/middleware/time_service/README.md)（`middleware`）
 - [`WebServer`](../../middleware/WebServer/README.md)（`middleware`）
 - [`HXC_NVS`](../../bsp/HXC_NVS/README.md)（`bsp`）
 - [`wifi_manager`](../../bsp/wifi_manager/README.md)（`bsp`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md)（`common`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

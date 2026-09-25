@@ -188,8 +188,8 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 - [`web_backend`](../web_backend/README.md)（`app`）
 - [`wifi_service`](../wifi_service/README.md)（`app`）
 - [`blackbox`](../../middleware/blackbox/README.md)（`middleware`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md)（`common`）
-- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/middleware/energy_meter/README.md)（`middleware`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/common/diagnostic_log/README.md)（`common`）
+- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/middleware/energy_meter/README.md)（`middleware`）
 - [`espnow_link`](../../middleware/espnow_link/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 - [`shell`](../../bsp/shell/README.md)（`bsp`）

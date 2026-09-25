@@ -72,7 +72,7 @@ flowchart LR
 
 Hook 只接受消息正文开头的 `@DLOG1:T@` / `@DLOG1:S@` 版本化标记，并在串口输出前
 移除标记。不会通过 TAG 或正文关键词猜测关键事件。业务代码应使用
-[`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md) 宏，不要手写标记。
+[`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/common/diagnostic_log/README.md) 宏，不要手写标记。
 
 捕获使用 4 个固定槽位和 32 项 RAM 环；拥堵时不阻塞业务日志输出。丢失计数由 Worker
 汇总为 `capture_drop` 事件，避免在 Hook 内打印日志形成递归。
@@ -141,7 +141,7 @@ ESP_ERROR_CHECK(BlackboxService::set_snapshot_interval_s(10, "ShellCommand"));
 - [`global_state`](../global_state/README.md)（`app`）
 - [`blackbox`](../../middleware/blackbox/README.md)（`middleware`）
 - [`HXC_NVS`](../../bsp/HXC_NVS/README.md)（`bsp`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/326101ce6642ac052fccea73469651e540f6e48e/components/common/diagnostic_log/README.md)（`common`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
