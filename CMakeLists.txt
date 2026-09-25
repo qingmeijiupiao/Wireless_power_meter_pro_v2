@@ -9,7 +9,6 @@ set(EXTRA_COMPONENT_DIRS
     "components/app"
     "components/assets"
     "components/bsp"
-    "components/common"
     "components/middleware"
 )
 

@@ -257,7 +257,7 @@ PowerOutput::add_policy(&max_on_policy);
 - [`protect`](../protect/README.md)（`app`）
 - [`short_circuit_detect`](../../middleware/short_circuit_detect/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/e73b43ee3637419643c1de325bbcfaa11c6b71c7/components/common/diagnostic_log/README.md)（`common`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
