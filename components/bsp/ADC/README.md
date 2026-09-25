@@ -5,6 +5,7 @@ ADC 单次采样封装组件，基于 ESP-IDF oneshot ADC 与曲线拟合校准�
 ## 模块特点
 
 - **ADC1 共享单元**：`adc_t` 使用静态 `adc1_unit_handle`，多个实例共享 ADC1 oneshot 单元
+- **并发串行化**：所有实例通过内部互斥锁串行访问共享单元，避免并发读取时 `adc_oneshot_read` 的 try-lock 直接返回 `ESP_ERR_TIMEOUT`
 - **按通道实例化**：构造时绑定 `adc_channel_t`，初始化时配置对应通道
 - **曲线拟合校准**：通过 `adc_cali_create_scheme_curve_fitting()` 创建校准句柄
 - **双读取接口**：支持读取原始 ADC raw 值，也支持换算为 mV
@@ -47,6 +48,7 @@ ESP_ERROR_CHECK(adc.read_voltage_mV(voltage_mV));
 
 - 当前实现的校准配置中 `cali_config.chan` 初始化为 `ADC_CHANNEL_0`，如需多通道高精度校准，建议同步检查该配置是否需要按实例通道设置。
 - 调用 `read_raw()` 或 `read_voltage_mV()` 前必须先调用 `init()`。
+- 同一 ADC1 单元可能被多个任务并发读取。`adc_oneshot_read()` 内部用 try-lock 获取单元锁，拿不到会立即返回 `ESP_ERR_TIMEOUT`；本组件在 `read_raw()` 内已用互斥锁串行化，调用方无需重复加锁，也不要把 ADC 读取放到持锁时间很长的路径里。
 
 ## 环境与依赖
 

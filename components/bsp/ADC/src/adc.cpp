@@ -9,8 +9,16 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h" // 包含校准方案特定函数
+#include <mutex>
 
 adc_oneshot_unit_handle_t adc_t::adc1_unit_handle = nullptr;
+
+namespace {
+// 多个 adc_t 实例共享同一 ADC1 单元，可能被不同任务并发读取。
+// adc_oneshot_read 内部用 try-lock 获取单元锁，拿不到会立即返回 ESP_ERR_TIMEOUT，
+// 因此这里用阻塞互斥把单元访问串行化，避免并发读互相打断。
+std::mutex adc_unit_mutex;
+} // namespace
 
 adc_oneshot_unit_init_cfg_t init_config1 = {
     .unit_id  = ADC_UNIT_1,
@@ -59,6 +67,7 @@ esp_err_t adc_t::read_raw(int& raw) {
         ret = ESP_ERR_INVALID_STATE;
         return ret;
     }
+    std::lock_guard<std::mutex> lock(adc_unit_mutex);
     int adc_value = 0;
     ret           = adc_oneshot_read(adc1_unit_handle, adc_channel, &adc_value);
     if (ret != ESP_OK) {
