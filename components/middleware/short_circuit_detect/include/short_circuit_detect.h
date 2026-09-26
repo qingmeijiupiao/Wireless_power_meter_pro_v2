@@ -36,6 +36,7 @@ constexpr uint8_t MAX_CONSECUTIVE_INVALID_SAMPLES = 5;
 struct Result {
     uint16_t voltage_mV;   /**< 最后一次有效采样电压。 */
     uint16_t min_voltage_mV; /**< 窗口内最低有效采样电压；无有效采样时为 0。 */
+    uint16_t max_voltage_mV; /**< 窗口内最高有效采样电压；无有效采样时为 0。 */
     uint16_t threshold_mV; /**< 本次判定使用的阈值。 */
     uint16_t sample_count; /**< 有效采样总数。 */
     uint16_t invalid_count; /**< 无效采样总数，包含已恢复的瞬时错误。 */
@@ -83,17 +84,30 @@ uint16_t get_threshold_mV();
  */
 esp_err_t set_threshold_mV(uint16_t threshold_mV);
 
-/** 最近一次短路检测的结果，供外部查询（如 CAN 状态帧）。 */
-enum class LastResult : uint8_t {
+/** 短路检测结果状态。 */
+enum class ResultState : uint8_t {
     NONE = 0, /**< 尚未执行过检测 */
     PASSED,   /**< 最近一次检测通过（未判定为短路） */
     FAILED,   /**< 最近一次检测判定为短路 */
 };
 
+/**
+ * @brief 最近一次短路检测的结果快照，供外部查询（如 CAN 状态帧）。
+ */
+struct LastResult {
+    ResultState state          = ResultState::NONE; /**< 结果状态 */
+    int64_t     started_us     = 0;                 /**< 检测开始时的系统时间戳（esp_timer_get_time） */
+    int64_t     finished_us    = 0;                 /**< 检测结束时的系统时间戳（esp_timer_get_time） */
+    uint16_t    threshold_mV   = 0;                 /**< 本次判定阈值 */
+    uint16_t    max_voltage_mV = 0;                 /**< 测试期间最高有效采样电压 */
+    uint16_t    min_voltage_mV = 0;                 /**< 测试期间最低有效采样电压 */
+    uint16_t    sample_count   = 0;                 /**< 有效采样总数 */
+};
+
 /** @return 当前是否有短路检测正在执行。 */
 bool is_testing();
 
-/** @return 最近一次短路检测的结果。 */
+/** @return 最近一次短路检测的结果快照；未执行过时 state 为 NONE。 */
 LastResult last_result();
 
 } // namespace ShortCircuitDetect

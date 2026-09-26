@@ -27,8 +27,9 @@ HXC::NVS_DATA<uint16_t> threshold_mV(THRESHOLD_NVS_KEY, DEFAULT_THRESHOLD_MV);
 bool                    initialized = false;
 std::atomic_flag test_busy = ATOMIC_FLAG_INIT;
 std::mutex config_mutex;
-std::atomic<bool>    testing_flag{false};
-std::atomic<uint8_t> last_result_value{static_cast<uint8_t>(LastResult::NONE)};
+std::atomic<bool> testing_flag{false};
+std::mutex        result_mutex;
+LastResult        last_snapshot;
 
 class TestLock {
   public:
@@ -118,6 +119,7 @@ static esp_err_t run_probe(Result& result, uint32_t window_ms, CancelCheck cance
         consecutive_invalid = 0;
         result.voltage_mV = static_cast<uint16_t>(voltage_mV);
         if (result.voltage_mV < result.min_voltage_mV) result.min_voltage_mV = result.voltage_mV;
+        if (result.voltage_mV > result.max_voltage_mV) result.max_voltage_mV = result.voltage_mV;
         ++result.sample_count;
         consecutive_good = voltage_mV >= result.threshold_mV ? consecutive_good + 1 : 0;
         if (consecutive_good >= REQUIRED_GOOD_SAMPLES) {
@@ -168,8 +170,9 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
     result.is_short       = true;
     if (cancelled && cancelled(context)) return ESP_ERR_INVALID_STATE;
 
+    const int64_t started_us  = esp_timer_get_time();
     TestPulseGuard pulse;
-    const int64_t deadline_us = esp_timer_get_time() + static_cast<int64_t>(MAX_TEST_TIME_MS) * 1000;
+    const int64_t deadline_us = started_us + static_cast<int64_t>(MAX_TEST_TIME_MS) * 1000;
     bool passed = false;
 
     err = pulse.enable();
@@ -206,9 +209,20 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
     }
 
     result.is_short = !passed;
-    if (result.sample_count == 0) result.min_voltage_mV = 0;
-    last_result_value.store(static_cast<uint8_t>(result.is_short ? LastResult::FAILED : LastResult::PASSED),
-                            std::memory_order_relaxed);
+    if (result.sample_count == 0) {
+        result.min_voltage_mV = 0;
+        result.max_voltage_mV = 0;
+    }
+    {
+        std::lock_guard<std::mutex> lock(result_mutex);
+        last_snapshot.state          = result.is_short ? ResultState::FAILED : ResultState::PASSED;
+        last_snapshot.started_us     = started_us;
+        last_snapshot.finished_us    = esp_timer_get_time();
+        last_snapshot.threshold_mV   = result.threshold_mV;
+        last_snapshot.max_voltage_mV = result.max_voltage_mV;
+        last_snapshot.min_voltage_mV = result.min_voltage_mV;
+        last_snapshot.sample_count   = result.sample_count;
+    }
 
     err = pulse.disable();
     if (err != ESP_OK) {
@@ -265,7 +279,8 @@ bool is_testing() {
 }
 
 LastResult last_result() {
-    return static_cast<LastResult>(last_result_value.load(std::memory_order_relaxed));
+    std::lock_guard<std::mutex> lock(result_mutex);
+    return last_snapshot;
 }
 
 } // namespace ShortCircuitDetect

@@ -181,7 +181,7 @@ esp_err_t init() {
         state_data.CAN_resistor              = terminal_resistor_enabled();
         state_data.short_detect_running      = ShortCircuitDetect::is_testing() ? 1 : 0;
         state_data.short_detect_passed =
-            ShortCircuitDetect::last_result() == ShortCircuitDetect::LastResult::PASSED ? 1 : 0;
+            ShortCircuitDetect::last_result().state == ShortCircuitDetect::ResultState::PASSED ? 1 : 0;
         state_data.UVP_flag                  = state.protect_states.states_bit.low_voltage_protect_state;
         state_data.OVP_flag                  = state.protect_states.states_bit.high_voltage_protect_state;
         state_data.OTP_flag                  = state.protect_states.states_bit.temperature_protect_state;

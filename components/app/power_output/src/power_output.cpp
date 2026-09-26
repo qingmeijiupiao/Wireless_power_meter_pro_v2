@@ -123,10 +123,10 @@ void log_result(const char* source, uint32_t id, OutputOperation operation, Outp
     const char* op = operation == OutputOperation::ON ? "on" : operation == OutputOperation::OFF ? "off" : "toggle";
     snprintf(line, sizeof(line),
              "output id=%" PRIu32 " src=%s op=%s %u>%u result=%s ms=%" PRId64
-             " test=%u test_ms=%" PRIu32 " mv=%u vmin=%u min=%u n=%u bad=%u err=%s bypass=%u wait=%" PRIu32 " protect=%u",
+             " test=%u test_ms=%" PRIu32 " mv=%u vmin=%u vmax=%u min=%u n=%u bad=%u err=%s bypass=%u wait=%" PRIu32 " protect=%u",
              id, source, op, before, state, result_to_string(result),
              (esp_timer_get_time() - started_us) / 1000, tested, test.duration_ms, test.voltage_mV,
-             test.min_voltage_mV, test.threshold_mV,
+             test.min_voltage_mV, test.max_voltage_mV, test.threshold_mV,
              test.sample_count, test.invalid_count, esp_err_to_name(result == OutputResult::FAIL_GPIO ? ESP_FAIL : error), bypassed, cooldown_ms, mask);
     if (result == OutputResult::FAIL_SHORT_CIRCUIT || result == OutputResult::FAIL_SHORT_DETECT ||
         result == OutputResult::FAIL_TIMEOUT || result == OutputResult::FAIL_GPIO) {
