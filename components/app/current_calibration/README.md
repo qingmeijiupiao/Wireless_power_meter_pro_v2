@@ -268,7 +268,7 @@ factory_mode
 2. **通电读取**：给设备上电，让负载工作（任何负载都行，LED 灯带、电机、电阻丝都可以，只要电流稳定）
 3. **同时读两个数**：
    - 万用表显示的真实电流（如 `1.23A`）
-   - 串口执行 `ina228_register`，记下输出的 `current` 值（即 `shunt_register_raw`）
+   - 串口执行 `ina_register`，记下输出的 `current` 值（即 `shunt_register_raw`）
 4. **计算**：
 
 ```
@@ -302,7 +302,7 @@ calibration_basek <计算结果>
 3. **快速读数**：
 
 ```
-ina228_register        # 读取当前 shunt_register_raw
+ina_register        # 读取当前 shunt_register_raw
 ```
 
 4. **计算并写入**：

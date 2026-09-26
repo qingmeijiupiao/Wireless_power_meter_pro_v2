@@ -952,14 +952,14 @@ esp_err_t init() {
         }));
 
     /**
-     * @brief  ina228_register - 获取ina228寄存器值
-     * @usage  ina228_register
+     * @brief  ina_register - 获取电压电流寄存器原始值
+     * @usage  ina_register
      * @note   显示当前快照中的兼容校准/诊断值，不直接访问原生寄存器
      */
     shell.register_command(
-        ShellCommand_t("ina228_register", "Get normalized INA228 diagnostic values", "", [](int argc, char** argv) -> int {
+        ShellCommand_t("ina_register", "Get current/voltage register raw values", "", [](int argc, char** argv) -> int {
             const auto state = get_global_state();
-            printf("ina228_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
+            printf("ina_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
                    state.current_register_raw, static_cast<uint32_t>(state.voltage_register_raw),
                    static_cast<uint32_t>(state.flags.lp_ina228_initialized ? 1U : 0U));
             return 0;
