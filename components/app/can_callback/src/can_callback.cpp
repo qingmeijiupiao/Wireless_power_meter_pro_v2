@@ -1,5 +1,4 @@
 #include "can_callback.h"
-#include "can_resistor.h"
 #include "esp_log.h"
 #include "hardware.h"
 #include <cstdio>
@@ -12,6 +11,25 @@ static constexpr char     TAG[]                       = "CanCallback";
 static constexpr uint32_t DIAGNOSTICS_TASK_STACK_SIZE = 2048;
 
 static HXC_TWAI* can_bus = nullptr;
+
+// CAN 终端电阻控制器：整机唯一实例，通用持久化能力由 nvs_gpio_output 提供。
+static NvsGpioOutput terminal_resistor_controller("can_term", false, true);
+
+NvsGpioOutput& terminal_resistor() {
+    return terminal_resistor_controller;
+}
+
+bool terminal_resistor_enabled() {
+    return terminal_resistor_controller.get();
+}
+
+esp_err_t set_terminal_resistor(bool enabled) {
+    return terminal_resistor_controller.set(enabled);
+}
+
+esp_err_t toggle_terminal_resistor() {
+    return terminal_resistor_controller.toggle();
+}
 
 HXC::NVS_DATA<uint32_t> CAN_BAUDRATE("CAN_BAUDRATE", DEFAULT_CAN_BAUDRATE);
 HXC::NVS_DATA<uint32_t> CAN_ID("CAN_ID", DEFAULT_DEVICE_CAN_ID);
@@ -56,14 +74,14 @@ bool is_available() {
 }
 
 esp_err_t init() {
-    auto& hw           = get_hardware_config();
-    auto& can_resistor = CanResistor::instance();
-    can_resistor.add_on_change_callback([](bool enabled) {
+    auto& hw       = get_hardware_config();
+    auto& resistor = terminal_resistor();
+    resistor.set_on_change_callback([](bool enabled) {
         update_global_state([enabled](GlobalState& state) { state.flags.can_resistor_enabled = enabled; });
         ESP_LOGW(TAG, "CAN resistor changed to %s", enabled ? "ON" : "OFF");
     });
 
-    esp_err_t ret = can_resistor.init(hw.CAN_RESISTOR_ENABLE);
+    esp_err_t ret = resistor.init(hw.CAN_RESISTOR_ENABLE);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "CAN resistor init failed on GPIO %d: %s", hw.CAN_RESISTOR_ENABLE, esp_err_to_name(ret));
         return ret;
@@ -101,7 +119,7 @@ esp_err_t init() {
         state_data.Chip_temperature          = state.chip_temperature / 100;
         state_data.output_state              = state.flags.output_enabled;
         state_data.current_direction         = state.current_uA > 0 ? 1 : 0;
-        state_data.CAN_resistor              = CanResistor::instance().get();
+        state_data.CAN_resistor              = terminal_resistor_enabled();
         state_data.UVP_flag                  = state.protect_states.states_bit.low_voltage_protect_state;
         state_data.OVP_flag                  = state.protect_states.states_bit.high_voltage_protect_state;
         state_data.OTP_flag                  = state.protect_states.states_bit.temperature_protect_state;
@@ -139,7 +157,7 @@ esp_err_t init() {
      */
     can_bus->add_can_receive_callback_func(CAN_ID + CALLBACK_SET_RESISTOR, [](HXC_CAN_message_t* msg) {
         const bool      enabled = msg->data[0] == 0x01;
-        const esp_err_t ret     = CanResistor::instance().set(enabled);
+        const esp_err_t ret     = set_terminal_resistor(enabled);
         DEVICE_STATE_I(TAG, "can: resistor source=can target=%u result=%s", enabled ? 1U : 0U, esp_err_to_name(ret));
     });
 
@@ -170,7 +188,7 @@ esp_err_t init() {
     //     });
 
     DEVICE_EVENT_I(TAG, "can: init id=0x%lx baud=%lu resistor=%u", static_cast<uint32_t>(CAN_ID.read()),
-                   static_cast<uint32_t>(CAN_BAUDRATE.read()), can_resistor.get() ? 1U : 0U);
+                   static_cast<uint32_t>(CAN_BAUDRATE.read()), terminal_resistor_enabled() ? 1U : 0U);
     // 诊断任务仅周期读取计数器并在变化时输出日志，2KB 足以覆盖格式化路径。
     if (xTaskCreate(diagnostics_task, "can_diag", DIAGNOSTICS_TASK_STACK_SIZE, nullptr, 2, nullptr) != pdPASS) {
         ESP_LOGE(TAG, "failed to create diagnostics task");

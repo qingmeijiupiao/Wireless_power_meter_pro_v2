@@ -11,6 +11,6 @@ idf_component_register(
                          "src/pages/settings/settings_page.cpp"
                          "src/widgets/ui_chrome.cpp"
                     REQUIRES Button
-                    PRIV_REQUIRES st7789_driver hardware diagnostic_log global_state protect freertos log ui_resources Fonts HXC_NVS wifi_service wifi_manager espnow_link espnow_service power_output can_callback can_resistor energy_meter blackbox blackbox_service current_calibration ota_service
+                    PRIV_REQUIRES st7789_driver hardware diagnostic_log global_state protect freertos log ui_resources Fonts HXC_NVS wifi_service wifi_manager espnow_link espnow_service power_output can_callback energy_meter blackbox blackbox_service current_calibration ota_service
                     INCLUDE_DIRS "include"
                     PRIV_INCLUDE_DIRS "private_include")

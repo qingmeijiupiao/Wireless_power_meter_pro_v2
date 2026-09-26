@@ -7,7 +7,6 @@
 #include "blackbox.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
-#include "can_resistor.h"
 #include "current_calibration.h"
 #include "esp_app_desc.h"
 #include "esp_flash.h"
@@ -96,7 +95,7 @@ void append_runtime() {
     const auto  global_state = get_global_state();
     const auto  flags_raw    = std::bit_cast<uint32_t>(global_state.flags);
     append_boot_line("boot: runtime can_resistor=%u wifi_mode=%u ip=%u.%u.%u.%u",
-                     CanResistor::instance().get() ? 1U : 0U, static_cast<uint32_t>(WifiService::get_mode()), ip.octet1,
+                     CanCallback::terminal_resistor_enabled() ? 1U : 0U, static_cast<uint32_t>(WifiService::get_mode()), ip.octet1,
                      ip.octet2, ip.octet3, ip.octet4);
     append_boot_line("boot: runtime ina228_raw_i=%d ina228_raw_v=%u flags=0x%lx", global_state.current_register_raw,
                      global_state.voltage_register_raw, static_cast<uint32_t>(flags_raw));

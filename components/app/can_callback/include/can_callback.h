@@ -11,6 +11,7 @@
 #include "esp_err.h"
 #include "HXC_TWAI.h"
 #include "HXC_NVS.h"
+#include "nvs_gpio_output.h"
 #include "protect.h"
 
 namespace CanCallback {
@@ -71,6 +72,28 @@ bool is_available();
  * @return  {*}
  */
 HXC_TWAI& get_can_bus();
+
+/**
+ * @brief 获取 CAN 终端电阻控制器。
+ * @return 控制器引用。
+ */
+NvsGpioOutput& terminal_resistor();
+
+/** @return 终端电阻是否接入。 */
+bool terminal_resistor_enabled();
+
+/**
+ * @brief 设置终端电阻状态并持久化。
+ * @param enabled true 表示接入终端电阻。
+ * @return ESP_OK 成功。
+ */
+esp_err_t set_terminal_resistor(bool enabled);
+
+/**
+ * @brief 翻转终端电阻状态并持久化。
+ * @return ESP_OK 成功。
+ */
+esp_err_t toggle_terminal_resistor();
 
 } // namespace CanCallback
 

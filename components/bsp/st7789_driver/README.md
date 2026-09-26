@@ -81,8 +81,8 @@ ST7789::set_backlight(200);
 
 工程内直接依赖：
 
-- [`PWM`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/bsp/PWM/README.md)（`bsp`）
-- [`Interp`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/common/Interp/README.md)（`common`）
+- [`PWM`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/PWM/README.md)（`bsp`）
+- [`Interp`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/Interp/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

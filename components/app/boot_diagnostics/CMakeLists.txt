@@ -5,7 +5,6 @@ idf_component_register(
         blackbox
         blackbox_service
         can_callback
-        can_resistor
         current_calibration
         esp_app_format
         esp_system

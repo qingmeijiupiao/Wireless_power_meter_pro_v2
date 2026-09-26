@@ -338,7 +338,7 @@ sequenceDiagram
 工程内直接依赖：
 
 - [`blackbox_service`](../blackbox_service/README.md)（`app`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/common/diagnostic_log/README.md)（`common`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/diagnostic_log/README.md)（`common`）
 - [`can_callback`](../can_callback/README.md)（`app`）
 - [`current_calibration`](../current_calibration/README.md)（`app`）
 - [`espnow_service`](../espnow_service/README.md)（`app`）
@@ -348,10 +348,10 @@ sequenceDiagram
 - [`protect`](../protect/README.md)（`app`）
 - [`screen`](../screen/README.md)（`app`）
 - [`wifi_service`](../wifi_service/README.md)（`app`）
-- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/energy_meter/README.md)（`middleware`）
-- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/espnow_link/README.md)（`middleware`）
-- [`ota_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/ota_manager/README.md)（`middleware`）
-- [`WebServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/WebServer/README.md)（`middleware`）
+- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/energy_meter/README.md)（`middleware`）
+- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/espnow_link/README.md)（`middleware`）
+- [`ota_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/ota_manager/README.md)（`middleware`）
+- [`WebServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/WebServer/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 - [`st7789_driver`](../../bsp/st7789_driver/README.md)（`bsp`）
 - [`web_file`](../../assets/web_file/README.md)（`assets`）

@@ -23,7 +23,6 @@
 #include "esp_log.h"
 #include "blackbox_service.h"
 #include "can_callback.h"
-#include "can_resistor.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "global_state.h"
