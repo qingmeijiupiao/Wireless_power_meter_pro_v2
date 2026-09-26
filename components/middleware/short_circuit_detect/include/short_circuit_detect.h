@@ -83,6 +83,19 @@ uint16_t get_threshold_mV();
  */
 esp_err_t set_threshold_mV(uint16_t threshold_mV);
 
+/** 最近一次短路检测的结果，供外部查询（如 CAN 状态帧）。 */
+enum class LastResult : uint8_t {
+    NONE = 0, /**< 尚未执行过检测 */
+    PASSED,   /**< 最近一次检测通过（未判定为短路） */
+    FAILED,   /**< 最近一次检测判定为短路 */
+};
+
+/** @return 当前是否有短路检测正在执行。 */
+bool is_testing();
+
+/** @return 最近一次短路检测的结果。 */
+LastResult last_result();
+
 } // namespace ShortCircuitDetect
 
 #endif // SHORT_CIRCUIT_DETECT_H

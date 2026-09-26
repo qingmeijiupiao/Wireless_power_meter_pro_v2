@@ -21,20 +21,51 @@ enum CALLBACK_ID : uint8_t {
     CALLBACK_GET_STATE    = 0x01,
     CALLBACK_SET_OUTPUT   = 0x02,
     CALLBACK_SET_RESISTOR = 0x03,
+    // 新增命令请加在此处之前并保持偏移连续。
+    CALLBACK_ID_COUNT,
 };
+
+// ===== 硬件验收过滤器覆盖的命令偏移空间 =====
+// 由 CALLBACK_ID_COUNT 自动推导为 >= 它的最小 2 的幂，因此新增（连续偏移的）回调时
+// 过滤器会自动扩容，无需手动维护。
+// 它同时用于：
+//   1) 计算硬件过滤器的忽略位（覆盖 CAN_ID .. CAN_ID + SPAN - 1）；
+//   2) 回调注册处的编译期范围检查（偏移不连续/越界会编译失败）。
+constexpr uint16_t CAN_CALLBACK_FILTER_SPAN = [] {
+    uint16_t span = 1;
+    while (span < CALLBACK_ID_COUNT) {
+        span <<= 1;
+    }
+    return span;
+}();
+static_assert((CAN_CALLBACK_FILTER_SPAN & (CAN_CALLBACK_FILTER_SPAN - 1)) == 0,
+              "CAN_CALLBACK_FILTER_SPAN must be a power of two");
+static_assert(CAN_CALLBACK_FILTER_SPAN <= 0x800, "CAN_CALLBACK_FILTER_SPAN exceeds 11-bit standard ID space");
+
+/**
+ * @brief 注册回调前的编译期范围检查。
+ * @tparam Id 命令偏移；超出硬件过滤器覆盖范围时编译失败（例如枚举存在空洞）。
+ */
+template <CALLBACK_ID Id> constexpr void assert_callback_filtered() {
+    static_assert(Id < CAN_CALLBACK_FILTER_SPAN,
+                  "callback offset exceeds CAN_CALLBACK_FILTER_SPAN; keep CALLBACK_ID offsets contiguous "
+                  "starting from 0 or fix the enum layout");
+}
 
 // 获取状态CAN消息数据结构
 struct CALLBACK_GET_STATE_DATA_t {
     uint16_t voltage_mV;
-    int16_t  current_mA;
+    uint16_t current_10mA; // 电流绝对值，单位 10mA，量程 0..655.35A（宽电流范围）
 
     int8_t Board_temperature; // TMP235温度  单位为1摄氏度
     int8_t Chip_temperature;  // 芯片温度    单位为1摄氏度
 
-    uint8_t output_state      : 1; // 输出状态     0: 关闭 1: 开启
-    uint8_t current_direction : 1; // 当前电流方向 0: 正向 1: 反向
-    uint8_t CAN_resistor      : 1; // 终端电阻状态 0: 关闭 1: 开启
-    uint8_t reserved          : 5; // 保留位
+    uint8_t output_state         : 1; // 输出状态     0: 关闭 1: 开启
+    uint8_t current_direction    : 1; // 当前电流方向 0: 正向 1: 反向
+    uint8_t CAN_resistor         : 1; // 终端电阻状态 0: 关闭 1: 开启
+    uint8_t short_detect_running : 1; // 短路检测是否正在执行 0: 否 1: 是
+    uint8_t short_detect_passed  : 1; // 最近一次短路检测是否通过 0: 否/未知 1: 通过
+    uint8_t reserved             : 3; // 保留位
 
     ProtectState_t UVP_flag : 2; // 低压保护状态
     ProtectState_t OVP_flag : 2; // 高压保护状态
@@ -55,6 +86,12 @@ struct CALLBACK_SET_RESISTOR_DATA_t {
 
 constexpr uint32_t DEFAULT_CAN_BAUDRATE = 1_Mbps;
 constexpr uint32_t DEFAULT_DEVICE_CAN_ID = 0x400; // 默认设备ID 设备ID大于0x700时使用扩展帧，否则使用标准帧
+
+// 是否启用硬件验收过滤器（编译期常量）。
+// 启用时只接收 CAN_ID .. CAN_ID + CAN_CALLBACK_FILTER_SPAN - 1 的本机控制帧。
+// 接收非本机定义的帧一般只在调试时需要，因此用编译期变量控制，不做运行期配置。
+constexpr bool CAN_USE_HARDWARE_FILTER = true;
+
 extern HXC::NVS_DATA<uint32_t> CAN_BAUDRATE;
 extern HXC::NVS_DATA<uint32_t> CAN_ID;
 

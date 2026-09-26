@@ -27,6 +27,8 @@ HXC::NVS_DATA<uint16_t> threshold_mV(THRESHOLD_NVS_KEY, DEFAULT_THRESHOLD_MV);
 bool                    initialized = false;
 std::atomic_flag test_busy = ATOMIC_FLAG_INIT;
 std::mutex config_mutex;
+std::atomic<bool>    testing_flag{false};
+std::atomic<uint8_t> last_result_value{static_cast<uint8_t>(LastResult::NONE)};
 
 class TestLock {
   public:
@@ -35,6 +37,15 @@ class TestLock {
     bool acquired() const { return acquired_; }
   private:
     bool acquired_;
+};
+
+/** 标记检测正在执行，供外部查询；析构时清除。 */
+class TestingFlagGuard {
+  public:
+    TestingFlagGuard() { testing_flag.store(true, std::memory_order_relaxed); }
+    ~TestingFlagGuard() { testing_flag.store(false, std::memory_order_relaxed); }
+    TestingFlagGuard(const TestingFlagGuard&)            = delete;
+    TestingFlagGuard& operator=(const TestingFlagGuard&) = delete;
 };
 
 /** 确保所有正常和异常退出路径都关闭短路测试激励。 */
@@ -146,6 +157,7 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
     } timing{result};
     TestLock lock;
     if (!lock.acquired()) return ESP_ERR_INVALID_STATE;
+    TestingFlagGuard testing_guard;
     esp_err_t err = init_unlocked();
     if (err != ESP_OK) {
         return err;
@@ -195,6 +207,8 @@ esp_err_t test(Result& result, CancelCheck cancelled, void* context) {
 
     result.is_short = !passed;
     if (result.sample_count == 0) result.min_voltage_mV = 0;
+    last_result_value.store(static_cast<uint8_t>(result.is_short ? LastResult::FAILED : LastResult::PASSED),
+                            std::memory_order_relaxed);
 
     err = pulse.disable();
     if (err != ESP_OK) {
@@ -244,6 +258,14 @@ esp_err_t ensure_idle() {
     TestLock lock;
     if (!lock.acquired()) return ESP_ERR_INVALID_STATE;
     return set_short_test_enabled(false);
+}
+
+bool is_testing() {
+    return testing_flag.load(std::memory_order_relaxed);
+}
+
+LastResult last_result() {
+    return static_cast<LastResult>(last_result_value.load(std::memory_order_relaxed));
 }
 
 } // namespace ShortCircuitDetect

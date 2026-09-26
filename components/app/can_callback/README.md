@@ -9,16 +9,20 @@
 - 集中注册设备 CAN 命令，避免业务回调散落在不同模块。
 - 使用 NVS 保存设备 ID 和波特率。
 - 将输出控制、终端电阻控制和状态查询连接到对应业务组件。
+- 默认启用**硬件验收过滤器**，只接收本机控制帧（`CAN_ID .. CAN_ID+3`），
+  在繁忙总线上让无关帧在硬件层被丢弃，几乎不占用 CPU。
+- 只打印/记录控制帧日志；无关帧仅做原子计数，不做逐帧打印。
 - 每秒检查 CAN 错误计数，变化时输出 `WARN` 诊断事件并强制记录状态快照。
 
 ## 架构
 
 ```mermaid
 flowchart TD
-    Init["CanCallback::init()"] --> Resistor["初始化 can_resistor"]
+    Init["CanCallback::init()"] --> Resistor["初始化终端电阻"]
     Resistor --> Driver["创建 HXC_TWAI<br/>读取 CAN_BAUDRATE"]
-    Driver --> Setup["setup()"]
-    Setup --> Register["注册 4 个协议回调<br/>和 1 个调试 Catch-All"]
+    Driver --> Filter["按 CAN_ID 配置硬件过滤器<br/>CAN_USE_HARDWARE_FILTER=1"]
+    Filter --> Setup["setup()"]
+    Setup --> Register["注册 4 个协议回调<br/>和 1 个计数 Catch-All"]
     Register --> Diag["创建 can_diag 任务"]
 
     Bus["CAN 总线帧"] --> HXC["HXC_TWAI<br/>按 identifier 分发"]
@@ -57,9 +61,22 @@ flowchart TD
 | `CAN_ID + 0x01` | 无要求 | 读取 `global_state` 和终端电阻状态 | `CALLBACK_GET_STATE_DATA_t` |
 | `CAN_ID + 0x02` | `data[0] == 0x01` 表示开启，其他值表示关闭 | 校验 DLC 后异步调用 `PowerOutput::request()`，完成时记录最终结果 | 无 |
 | `CAN_ID + 0x03` | `data[0] == 0x01` 表示开启，其他值表示关闭 | 调用 `CanResistor::set()`，并输出持久化诊断事件 | 无 |
-| `-1` | 任意 | 调试 Catch-All：打印所有收到的帧 | 无 |
+| `-1` | 任意 | 全量 Catch-All：仅对收到的帧做原子计数，不打印 | 无 |
 
-> Catch-All 会打印每条 CAN 帧。总线流量较大或准备发布时，应评估是否保留。
+> 满载压测（6000~8000fps）时逐帧打印会成为瓶颈，因此 Catch-All 只计数，
+> 累计值由 `can_diag` 每秒随诊断日志输出。控制帧的收发使用 `ESP_LOGI` 打印。
+
+## 硬件过滤器
+
+由编译期常量 `CAN_USE_HARDWARE_FILTER`（默认 `true`）控制。启用时在 `setup()` 前按 `CAN_ID`
+配置硬件验收过滤器，只接收 `CAN_ID .. CAN_ID + CAN_CALLBACK_FILTER_SPAN - 1` 的本机控制帧。
+`CAN_CALLBACK_FILTER_SPAN` 由枚举哨兵 `CALLBACK_ID_COUNT` 自动推导为“不小于它的最小 2 的幂”，
+所以新增（连续偏移的）回调时过滤器会自动扩容，不会出现“新增回调被硬件过滤器误滤”的问题。
+
+这与“设备挂在繁忙总线上、大量无关帧占用带宽”的场景配合，可显著降低 CPU 占用。
+
+接收非本机定义的帧一般只在调试时需要，因此这里用编译期变量控制，不做运行期配置；
+调试时将 `CAN_USE_HARDWARE_FILTER` 改为 `false` 重新编译即可接收总线上所有帧。
 
 ## 状态回复格式
 
@@ -68,13 +85,15 @@ flowchart TD
 | 字段 | 类型 | 单位或含义 |
 |------|------|------------|
 | `voltage_mV` | `uint16_t` | mV |
-| `current_mA` | `int16_t` | 电流绝对值，mA |
+| `current_10mA` | `uint16_t` | 电流绝对值，单位 10mA，量程 0..655.35A |
 | `Board_temperature` | `int8_t` | TMP235 板温，1 摄氏度 |
 | `Chip_temperature` | `int8_t` | 芯片内温，1 摄氏度 |
 | `output_state` | 1 bit | 输出状态 |
 | `current_direction` | 1 bit | 代码中 `current_uA > 0` 时为 `1` |
 | `CAN_resistor` | 1 bit | CAN 终端电阻状态 |
-| `reserved` | 5 bit | 保留 |
+| `short_detect_running` | 1 bit | 短路检测是否正在执行 |
+| `short_detect_passed` | 1 bit | 最近一次短路检测是否通过（未测过为 0） |
+| `reserved` | 3 bit | 保留 |
 | `UVP_flag` | 2 bit | 欠压保护状态 |
 | `OVP_flag` | 2 bit | 过压保护状态 |
 | `OTP_flag` | 2 bit | 过温保护状态 |
@@ -86,6 +105,8 @@ flowchart TD
 |------|--------|------|
 | `CAN_BAUDRATE` | `1_Mbps` | 初始化 TWAI 时读取，修改后需重新初始化或重启 |
 | `CAN_ID` | `0x400` | 注册回调时读取，修改后需重新初始化或重启 |
+
+> 硬件过滤器由编译期常量 `CAN_USE_HARDWARE_FILTER` 控制，不存 NVS。
 
 ## 使用方式
 
@@ -109,6 +130,8 @@ if (CanCallback::is_available()) {
 3. 明确请求数据长度、回复格式和标准帧/扩展帧要求。
 4. 若回复结构可能超过 8 字节，增加 `static_assert`。
 5. 更新本 README 的协议表。
+6. 新偏移请放在 `CALLBACK_ID_COUNT` 之前并保持连续：`CAN_CALLBACK_FILTER_SPAN` 会自动
+   扩容到覆盖它的最小 2 的幂，注册前调用 `assert_callback_filtered<CALLBACK_XXX>()` 复用同一检查。
 
 ## 环境与依赖
 
