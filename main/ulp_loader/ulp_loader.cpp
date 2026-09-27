@@ -42,6 +42,7 @@ const lp_core_i2c_cfg_t i2c_cfg = {
 };
 
 HXC::NVS_DATA<CurrentCalib::params_t> CurrentCalib::params_data("CUR_CAL", CurrentCalib::DEFAULT);
+HXC::NVS_DATA<uint32_t> VoltageCalib::ina226_k_data("V226_K", VoltageCalib::DEFAULT_INA226);
 CurrentCalib::params_t* ulp_calib_params = reinterpret_cast<CurrentCalib::params_t*>(ulp_current_calib_params);
 ulp_lp_core_spinlock_t* rtc_shared_lock =
     reinterpret_cast<ulp_lp_core_spinlock_t*>(static_cast<void*>(&ulp_shared_lock));
@@ -77,10 +78,25 @@ bool LP_Core_GetSnapshot(LP_Core_Snapshot* snapshot) {
     snapshot->shunt_register_raw     = static_cast<int16_t>(ulp_shunt_register_raw);
     snapshot->voltage_register_raw   = static_cast<uint16_t>(ulp_voltage_register_raw);
     snapshot->ina228_manufacturer_id = static_cast<uint16_t>(ulp_ina228_manufacturer_id);
+    snapshot->frontend              = static_cast<SamplingFrontend>(ulp_sampling_frontend);
+    snapshot->voltage_k             = ulp_active_voltage_k;
     snapshot->meter_uah              = read_shared_int64(ulp_meter_uah);
     snapshot->meter_uwh              = read_shared_int64(ulp_meter_uwh);
     ulp_lp_core_exit_critical(rtc_shared_lock);
     return true;
+}
+
+VoltageCalib::Runtime VoltageCalib::get_runtime() {
+    LP_Core_Snapshot snapshot = {};
+    Runtime result;
+    if (!LP_Core_GetSnapshot(&snapshot)) return result;
+    result.frontend = snapshot.frontend;
+    result.active_k = snapshot.voltage_k;
+    result.uncalibrated_uv = static_cast<uint32_t>(snapshot.voltage_register_raw) * 1250U;
+    result.available = snapshot.state.ulp_state_bits.ulp_ina228_init_ok &&
+                       !snapshot.state.ulp_state_bits.ulp_ina228_read_timeout &&
+                       !snapshot.state.ulp_state_bits.ulp_i2c_init_err;
+    return result;
 }
 
 void LP_Core_SetBoardTemperature(int32_t temperature) {
@@ -118,7 +134,9 @@ void print_lp_core_log_task(void* arg) {
  */
 void load_current_calib_params(bool need_flag = true) {
     const CurrentCalib::params_t params = CurrentCalib::params_data.read();
+    const uint32_t voltage_k = VoltageCalib::ina226_k_data.read();
     ulp_lp_core_enter_critical(rtc_shared_lock);
+    ulp_ina226_voltage_k = VoltageCalib::valid(voltage_k) ? voltage_k : VoltageCalib::DEFAULT_INA226;
     *ulp_calib_params = params;
     if (need_flag) {
         reinterpret_cast<ULP_CORE_STATE*>(&ulp_ulp_state)->ulp_state_bits.ulp_reload_calib_params = true;
@@ -172,7 +190,7 @@ esp_err_t LP_Core_Load(void) {
     LP_Core_Snapshot snapshot = {};
     LP_Core_GetSnapshot(&snapshot);
     if (snapshot.state.ulp_state_bits.ulp_i2c_init_err) {
-        ESP_LOGE(LPTAG, "lp: ina228 result=unavailable reason=communication_failed manufacturer=0x%04x",
+        ESP_LOGE(LPTAG, "lp: frontend result=unavailable reason=communication_failed manufacturer=0x%04x",
                  static_cast<uint32_t>(snapshot.ina228_manufacturer_id));
     } else {
         ESP_LOGI(LPTAG, "lp core i2c init success...");
@@ -182,7 +200,8 @@ esp_err_t LP_Core_Load(void) {
         ESP_LOGE(LPTAG, "lp core run timeout");
         return ESP_ERR_TIMEOUT;
     } else {
-        ESP_LOGI(LPTAG, "lp core run success...");
+        ESP_LOGI(LPTAG, "lp core run success: INA%lu voltage_k_ppm=%lu",
+                 static_cast<uint32_t>(snapshot.frontend), snapshot.voltage_k);
         LP_Core_GetSnapshot(&snapshot);
         DEVICE_STATE_I(LPTAG, "lp: lifecycle old=starting new=running voltage_uv=%ld current_ua=%ld",
                        static_cast<int32_t>(snapshot.voltage_uv), static_cast<int32_t>(snapshot.current_uA));

@@ -13,6 +13,7 @@
 #include "ulp_main.h"
 #include "ulp_app/ulp_state.h"
 #include <stdint.h>
+#include "VoltageCalib.h"
 
 /**
  * @brief 初始化 LP I2C、加载并启动 LP Core 固件。
@@ -28,6 +29,8 @@ struct LP_Core_Snapshot {
     int16_t        shunt_register_raw     = 0; // 兼容校准域，2.5uV/单位
     uint16_t       voltage_register_raw   = 0; // 兼容诊断域，1.25mV/单位
     uint16_t       ina228_manufacturer_id = 0;
+    SamplingFrontend frontend            = SamplingFrontend::Unknown;
+    uint32_t       voltage_k             = VoltageCalib::SCALE;
     int64_t        meter_uah              = 0;
     int64_t        meter_uwh              = 0;
 };

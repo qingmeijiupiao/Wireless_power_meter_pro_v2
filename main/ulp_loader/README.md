@@ -23,7 +23,7 @@ I2C控制器初始化、LP加载和启动错误使用ESP_ERROR_CHECK；不是所
 | LP_Core_SetBoardTemperature | 发布0.01℃板温，锁未初始化时忽略 |
 | load_current_calib_params | loader实现内的校准下发函数；运行期调用时设置LP重载标志 |
 
-`LP_Core_Snapshot` 的分流raw单位2.5μV、电压raw单位1.25mV，均为INA228原生结果折算后的兼容值。
+`LP_Core_Snapshot` 的分流raw单位2.5μV、电压raw单位1.25mV，分别为统一兼容值；INA226电压raw为分压端校准前读数。快照新增frontend和voltage_k，供型号与有效系数诊断。
 mapgen导出的64位符号按字节复制，且整个快照在同一临界区读取，避免撕裂和别名问题。
 
 LP日志任务栈1536字节、优先级4、10ms轮询；当前LP主循环预留日志字段但没有周期日志上报。

@@ -973,6 +973,10 @@ esp_err_t init() {
     shell.register_command(
         ShellCommand_t("calibration_params", "Get calibration params", "", [](int argc, char** argv) -> int {
             auto params = CurrentCalib::params_data.read();
+            const auto voltage = VoltageCalib::get_runtime();
+            printf("Frontend: INA%lu, sample available: %u\n", static_cast<uint32_t>(voltage.frontend), voltage.available);
+            printf("Voltage k active: %.6f, INA226 k stored: %.6f (restart to apply)\n",
+                   voltage.active_k / 1000000.0, VoltageCalib::ina226_k_data.read() / 1000000.0);
             printf("Current calibration params:\n");
             printf(
                 "Calibration current basek: %d == sample resistance_mOhm: %.3f\n", params.current_base_K,
@@ -988,6 +992,51 @@ esp_err_t init() {
         }));
 
     /*============工厂模式命令==================*/
+    static ShellCommand_t calibration_voltage(
+        "calibration_voltage", "Calibrate INA226 voltage (INA228 fixed k=1)",
+        "<k factor | measured millivolts | reset>", [](int argc, char** argv) -> int {
+            const auto runtime = VoltageCalib::get_runtime();
+            if (runtime.frontend != SamplingFrontend::INA226 || !runtime.available) {
+                printf("Error: requires an available INA226 sample; INA228 voltage k is fixed at 1\n");
+                return 1;
+            }
+            uint32_t k = VoltageCalib::DEFAULT_INA226;
+            if (argc == 2 && strcmp(argv[1], "reset") == 0) {
+                k = VoltageCalib::DEFAULT_INA226;
+            } else if (argc == 3 && (strcmp(argv[1], "k") == 0 || strcmp(argv[1], "measured") == 0)) {
+                char* end = nullptr;
+                const double value = strtod(argv[2], &end);
+                if (end == argv[2] || *end != '\0' || !std::isfinite(value) || value <= 0) {
+                    printf("Error: value must be a finite positive number\n");
+                    return 1;
+                }
+                double factor = value;
+                if (strcmp(argv[1], "measured") == 0) {
+                    if (runtime.uncalibrated_uv == 0) {
+                        printf("Error: cannot calibrate at zero bus voltage\n");
+                        return 1;
+                    }
+                    factor = value * 1000.0 / runtime.uncalibrated_uv;
+                }
+                if (!std::isfinite(factor) || factor < 0.5 || factor > 4.0) {
+                    printf("Error: voltage k must be in [0.5, 4.0]\n");
+                    return 1;
+                }
+                k = static_cast<uint32_t>(factor * VoltageCalib::SCALE + 0.5);
+            } else {
+                printf("Usage: calibration_voltage <k factor | measured millivolts | reset>\n");
+                return 1;
+            }
+            const esp_err_t err = VoltageCalib::ina226_k_data.set(k);
+            if (err != ESP_OK) {
+                printf("Error: failed to persist voltage calibration: %s\n", esp_err_to_name(err));
+                return 1;
+            }
+            DEVICE_EVENT_I(TAG, "calib: voltage_k_ppm=%lu source=shell reboot_required=1", k);
+            printf("INA226 voltage k set to %.6f; restart required\n", k / 1000000.0);
+            return 0;
+        });
+
     // 校准基准电流K值
     static ShellCommand_t calibration_basek(
         "calibration_basek", "Calibration current basek Value", "<basek>", [](int argc, char** argv) -> int {
@@ -1079,6 +1128,7 @@ esp_err_t init() {
     shell.register_command(ShellCommand_t("factory_mode", "Enter factory mode", "", [](int argc, char** argv) -> int {
         auto& _shell = Shell::instance();
         protect_set_bypassed(true, TAG);
+        _shell.register_command(calibration_voltage);
         _shell.register_command(calibration_basek);
         _shell.register_command(calibration_current_temperatureK);
         _shell.register_command(calibration_current_points);

@@ -33,7 +33,7 @@ void update_main_state(TimerHandle_t xTimer) {
     const int16_t board_temperature = Board_Temperature_sensor.getTemperature();
     const int16_t chip_temperature  = static_cast<int16_t>(Chip_Temperature_Sensor.getTemperature() * 100.0f);
     update_global_state([&](GlobalState& state) {
-        state.voltage_mV           = static_cast<uint16_t>(snapshot.voltage_uv / 1000);
+        state.voltage_mV           = static_cast<uint16_t>(snapshot.voltage_uv / 1000 > UINT16_MAX ? UINT16_MAX : snapshot.voltage_uv / 1000);
         state.current_uA           = snapshot.current_uA;
         state.current_register_raw = snapshot.shunt_register_raw;
         state.voltage_register_raw = snapshot.voltage_register_raw;

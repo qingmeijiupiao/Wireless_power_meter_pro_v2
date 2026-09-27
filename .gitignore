@@ -85,3 +85,6 @@ Desktop.ini
 .cache/
 
 local/
+
+# Local documentation (not published)
+/docs/

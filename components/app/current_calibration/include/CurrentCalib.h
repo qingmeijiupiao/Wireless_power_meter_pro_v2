@@ -13,7 +13,7 @@
 namespace CurrentCalib {
 
 struct point_t {
-    int16_t register_value;       // 兼容校准域值，INA228 VSHUNT signed20 / 8，2.5uV/单位
+    int16_t register_value;       // 兼容校准域值，INA226 原值或 INA228 signed20 / 8（饱和），2.5uV/单位
     int16_t offset_current_100uA; // 电流偏移值 单位：100uA
 } __attribute__((packed, aligned(4)));
 

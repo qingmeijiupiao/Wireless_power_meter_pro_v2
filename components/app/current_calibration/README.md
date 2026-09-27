@@ -202,7 +202,7 @@ Rshunt_mΩ = 2500 / 1114 ≈ 2.244mΩ
 
 ## 算法运行流程
 
-完整算法在 LP 核心的 `ina228_run()` 中执行（`ulp_main.cpp`）：
+完整算法在 LP 核心的 `frontend_run()` 中执行（`ulp_main.cpp`）：
 
 ```
 1. 读取 INA228 Shunt Voltage 寄存器 → shunt_register_raw
@@ -232,7 +232,7 @@ flowchart TD
     NVS["NVS Flash"] -->|".read()"| HP["CurrentCalib::params_data<br/>(HP 核心, HXC::NVS_DATA)"]
     HP -->|"写入 RTC 共享内存"| RTC["current_calib_params<br/>(LP 核心, LP_VAR)"]
     RTC -->|"load_current_calib_params()"| INTERP["current_interp<br/>(6点插值表)"]
-    INTERP -->|"ina228_run() 每次循环"| OUT["current_uA<br/>(最终输出)"]
+    INTERP -->|"frontend_run() 每次循环"| OUT["current_uA<br/>(最终输出)"]
     HP -->|"calibration_params 命令"| DISPLAY["串口显示"]
 ```
 
@@ -462,3 +462,8 @@ current_calibration/
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
+
+## 双前端与电压校准
+
+现已兼容INA226与INA228；原有CUR_CAL数据结构不变。电压系数独立存储，INA226默认2，INA228固定1。
+命令用法见[串口命令说明](../shell_command/README.md#电压校准)，采样实现见[LP说明](../../../main/ulp_app/README.md)。

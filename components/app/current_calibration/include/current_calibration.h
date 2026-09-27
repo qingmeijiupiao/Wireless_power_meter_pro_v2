@@ -9,6 +9,12 @@
 #define CURRENT_CALIBRATION_H
 #include "HXC_NVS.h"
 #include "CurrentCalib.h"
+#include "VoltageCalib.h"
+
+namespace VoltageCalib {
+// Separate key preserves the existing CUR_CAL blob layout and calibration.
+extern HXC::NVS_DATA<uint32_t> ina226_k_data;
+}
 
 namespace CurrentCalib {
 

@@ -3,12 +3,10 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "ulp_lp_core_i2c.h"
+#include "ina_i2c.hpp"
 
 namespace INA228 {
 
-constexpr uint8_t  I2C_ADDR        = 0x40;
-constexpr int      I2C_TIMEOUT     = 10 * 20000;
 constexpr uint16_t MANUFACTURER_ID = 0x5449;
 constexpr uint16_t DEVICE_ID_MASK  = 0xFFF0;
 constexpr uint16_t DEVICE_ID       = 0x2280;
@@ -30,35 +28,9 @@ enum Register : uint8_t {
     DEVICE          = 0x3F,
 };
 
-inline esp_err_t read(Register reg, uint8_t* data, size_t size) {
-    uint8_t reg_byte = static_cast<uint8_t>(reg);
-    return lp_core_i2c_master_write_read_device(LP_I2C_NUM_0, I2C_ADDR, &reg_byte, 1, data, size, I2C_TIMEOUT);
-}
-
-inline esp_err_t read16(Register reg, uint16_t* value) {
-    uint8_t data[2] = {};
-    const esp_err_t ret = read(reg, data, sizeof(data));
-    if (ret == ESP_OK && value != nullptr) {
-        *value = (static_cast<uint16_t>(data[0]) << 8) | data[1];
-    }
-    return ret;
-}
-
-inline esp_err_t read24(Register reg, uint32_t* value) {
-    uint8_t data[3] = {};
-    const esp_err_t ret = read(reg, data, sizeof(data));
-    if (ret == ESP_OK && value != nullptr) {
-        *value = (static_cast<uint32_t>(data[0]) << 16) | (static_cast<uint32_t>(data[1]) << 8) | data[2];
-    }
-    return ret;
-}
-
-inline esp_err_t write16(Register reg, uint16_t value) {
-    uint8_t data[3] = {static_cast<uint8_t>(reg), static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value)};
-    uint8_t placeholder = 0;
-    return lp_core_i2c_master_write_read_device(LP_I2C_NUM_0, I2C_ADDR, data, sizeof(data), &placeholder, 1,
-                                                 I2C_TIMEOUT);
-}
+inline esp_err_t read16(Register reg, uint16_t* value) { return InaI2c::read16(reg, value); }
+inline esp_err_t read24(Register reg, uint32_t* value) { return InaI2c::read24(reg, value); }
+inline esp_err_t write16(Register reg, uint16_t value) { return InaI2c::write16(reg, value); }
 
 inline int32_t decode_signed20(uint32_t register_value) {
     uint32_t value = (register_value >> 4) & 0xFFFFF;

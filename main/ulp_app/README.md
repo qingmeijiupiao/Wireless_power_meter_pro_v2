@@ -1,13 +1,13 @@
 # ulp_app
 
-ESP32-C6 LP Core 独立固件：通过LP I2C轮询INA228，执行整数电流校准、温漂补偿和软件积分，将结果放入RTC共享区。HP加载与快照接口见 [ulp_loader](../ulp_loader/README.md)。
+ESP32-C6 LP Core 独立固件：通过LP I2C自动识别并轮询INA226或INA228，执行整数电流校准、温漂补偿和软件积分，将结果放入RTC共享区。HP加载与快照接口见 [ulp_loader](../ulp_loader/README.md)。
 
 ## 执行流程
 
 ```mermaid
 flowchart TD
     Start[LP main] --> Cal[读取校准参数并建立本地插值表]
-    Cal --> Init[复位 / 校验ID / 配置INA228 / 等待非零电压首样本]
+    Cal --> Init[校验ID识别前端 / 复位 / 配置 / 等待完整首样本]
     Init --> Run[置位ulp_run]
     Run --> Timer[更新20MHz周期计数对应的毫秒时钟]
     Timer --> Sample[轮询转换完成 / 读取VBUS与VSHUNT]
@@ -17,6 +17,20 @@ flowchart TD
 ```
 
 初始化及异常恢复持续重试，当前没有每秒循环频率统计任务。`app_loop_every_ms` 使用 `>`，以上周期是调度目标，不是严格定时中断。
+
+## INA226配置及自动识别
+
+地址固定0x40（当前板级连接），先读INA228的0x3E/0x3F，再读INA226的0xFE/0xFF；
+厂商必须为0x5449，器件按0xFFF0掩码分别匹配0x2280和0x2260（兼容0x2261）。
+未知器件不猜测型号，不写配置，进入重试。恢复时重新识别。
+INA226 CONFIG=0x4727：连续VBUS/VSHUNT，1.1ms/通道，64次平均，约140.8ms一组；
+Mask/Enable bit3为转换完成标志。VBUS为1.25mV/LSB，VSHUNT为有符号2.5µV/LSB。
+两种前端共用原有电流校准、温漂补偿、积分和异常恢复。
+
+INA226电压：`round(raw * 1250µV * k)`，默认k=2，用于底板R4/R5分压；
+INA228电压k恒定为1。诊断raw始终是校准前的电压，校准后电压用于显示、保护和积分。
+系数采用百万分之一定点数，NVS键`V226_K`与原有`CUR_CAL`独立。
+命令用法见[串口命令说明](../../components/app/shell_command/README.md#电压校准)。动态量程暂未实现。
 
 ## INA228配置
 
@@ -35,8 +49,8 @@ flowchart TD
 
 ```text
 voltage_uv = unsigned20(VBUS) * 3125 / 16
-voltage_register_raw = uint16(voltage_uv / 1250)
-shunt_register_raw = int16(signed20(VSHUNT) / 8)
+voltage_register_raw = saturate_uint16(voltage_uv / 1250)
+shunt_register_raw = saturate_int16(signed20(VSHUNT) / 8)
 ```
 
 原生VBUS单位为195.3125μV，当前宽量程VSHUNT单位为312.5nV。
@@ -65,7 +79,9 @@ HP在共享锁内下发参数并置重载位；LP在同一临界区读/清标志
 | current_uA | int32_t | 校准后有符号μA |
 | voltage_register_raw | uint16_t | 1.25mV/单位兼容值 |
 | shunt_register_raw | int16_t | 2.5μV/单位兼容值 |
-| ina228_manufacturer_id | uint16_t | 厂商ID |
+| ina228_manufacturer_id | uint16_t | 两种前端的厂商ID，沿用历史名称 |
+| sampling_frontend | uint32_t | 0未知、226、228 |
+| ina226_voltage_k / active_voltage_k | uint32_t | HP配置的INA226系数 / LP当前有效系数，比例1e6 |
 | Board_temperature | int32_t | HP写入的0.01℃板温 |
 | meter_uah / meter_uwh | int64_t | 本次LP启动以来的有符号整数累计 |
 | current_calib_params | CurrentCalib::params_t | HP写入的校准参数 |
@@ -76,16 +92,16 @@ I2C和计算在锁外，`publish_sample` 在同一临界区提交完整电压/�
 
 软件积分保留带符号余数：μAh除数为3600000（μA·ms），μWh除数为3600000000000（μA·μV·ms）。HP的EnergyMeter另维护可重置会话基线，LP不承担掉电持久化。
 
-连续超过1000ms无完整样本时置 `ulp_ina228_read_timeout`，保留旧显示值并阻塞重试初始化。恢复阶段置 `ulp_i2c_init_err`，首个非零电压有效样本恢复后清除错误与超时标志，并置初始化成功位。HP据此暂停OVP/UVP/OCP阻断，OTP独立工作；不是清零后触发UVP关断。
+连续超过1000ms无完整样本时置 `ulp_ina228_read_timeout`，保留旧显示值并阻塞重试初始化。恢复阶段置 `ulp_i2c_init_err`，首个完整有效样本（含0V）恢复后清除错误与超时标志，并置初始化成功位。HP据此暂停OVP/UVP/OCP阻断，OTP独立工作；不是清零后触发UVP关断。
 
 `update_meter` 遇到无效状态时跳过积分并更新时间基准。但阻塞恢复期间不执行正常积分调度，长时间中断后的积分间隔仍需专项验证，不能保证恢复窗口已被该分支完全排除。
 
 ## 已知边界与扩展要求
 
-- 首样本就绪要求电压非零；0V输入不满足当前初始化退出条件。
-- 分流兼容值仍为int16，`/8`后再窄化并未限幅；HP电压也只有uint16 mV。扩大实际量程前需同步校准结构、通信字段与日志。
+- 首样本允许0V；必须转换完成且两路寄存器均读取成功。
+- 分流兼容值仍为int16，超出时饱和，避免符号回绕；这不代表支持完整大量程。HP电压uint16 mV也饱和到65535mV。扩大有效量程前需同步校准结构、通信字段与日志。
 - `ulp_run` 是运行状态，不是心跳或样本新鲜度计数器。
 - 时钟换算依赖loader选择20MHz LP时钟；修改时钟需同时修改LP计时。
-- 新增计算需检查LP 8192字节保留区、整数乘积溢出、周期和共享锁时长。
+- 新增计算需检查LP 12288字节保留区（本次由8192扩容，为双驱动和栈保留空间）、整数乘积溢出、周期和共享锁时长。
 
-文件职责：`ina228.hpp`为寄存器访问，`ulp_main.cpp`为采样/积分，`ulp_Interp.hpp`为整数插值，`ulp_state.h`为共享状态位。
+文件职责：`ina226.hpp`、`ina228.hpp`为各芯片封装，`ina_i2c.hpp`为共用I2C传输，`sampling_frontend.hpp`为识别与统一采样，`ulp_main.cpp`为采样/积分，`ulp_Interp.hpp`为整数插值，`ulp_state.h`为共享状态位。

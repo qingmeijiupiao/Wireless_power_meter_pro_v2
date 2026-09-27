@@ -2,6 +2,7 @@
 #define ULP_STATE_H
 #include <stdint.h>
 
+// Historical ina228 field names now describe either detected frontend; bit positions stay compatible.
 union ULP_CORE_STATE {
     uint32_t ulp_state_raw;
     struct {

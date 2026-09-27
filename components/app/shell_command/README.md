@@ -198,3 +198,12 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
+
+## 电压校准
+
+`calibration_params`显示识别型号、样本有效性、当前生效和已保存电压系数。
+工厂模式增加`calibration_voltage k <系数>`、`calibration_voltage measured <实测mV>`、
+`calibration_voltage reset`；仅对有效INA226采样可用，写入NVS后重启生效。
+例如参考表测得24V，执行`calibration_voltage measured 24000`；或执行`calibration_voltage k 2.0035`直接设置系数。
+系数允许范围0.5～4，`reset`恢复默认2，INA228固定为1并拒绝修改。
+`factory_mode`会旁路软件保护，校准完成后重启退出工厂模式。

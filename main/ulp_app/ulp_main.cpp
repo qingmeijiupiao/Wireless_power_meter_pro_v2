@@ -3,7 +3,7 @@
 #include "ulp_lp_core_utils.h"
 #include <cstddef>
 #include <cstdlib>
-#include "ina228.hpp"
+#include "sampling_frontend.hpp"
 #include "ulp_state.h"
 #include "ulp_Interp.hpp"
 #include "../../components/app/current_calibration/include/CurrentCalib.h"
@@ -23,13 +23,19 @@ volatile uint16_t voltage_register_raw               LP_VAR;
 volatile int32_t current_uA                          LP_VAR;
 volatile int16_t shunt_register_raw                  LP_VAR;
 volatile uint16_t ina228_manufacturer_id             LP_VAR;
+volatile uint32_t sampling_frontend                  LP_VAR;
+volatile uint32_t ina226_voltage_k                   LP_VAR;
+volatile uint32_t active_voltage_k                   LP_VAR;
+static SamplingFrontend local_frontend = SamplingFrontend::Unknown;
+static uint32_t local_voltage_k = VoltageCalib::SCALE;
 volatile int32_t Board_temperature                   LP_VAR; // 单位0.01℃
 volatile int64_t meter_uah                           LP_VAR; // 单位uAh
 volatile int64_t meter_uwh                           LP_VAR; // 单位uWh
 volatile CurrentCalib::params_t current_calib_params LP_VAR;
 
 volatile uint32_t                            now_time_ms = 0;
-UlpNonEquidistantInterp<int16_t, int16_t, 6> current_interp;
+// Widen interpolation arithmetic so abs(INT16_MIN) remains representable.
+UlpNonEquidistantInterp<int32_t, int16_t, 6> current_interp;
 ULP_CORE_STATE&                              ulp_state_p = *(ULP_CORE_STATE*)&(ulp_state);
 // 计算过程使用 LP 本地副本，避免每次采样长时间占用跨核锁。
 CurrentCalib::params_t                       local_current_calib_params;
@@ -49,10 +55,10 @@ template <typename F> void with_shared_lock_void(F&& action) {
 }
 
 /**
- * @brief 发布一组完整的 INA228 采样结果到 RTC 共享区。
+ * @brief 发布一组完整的前端采样结果到 RTC 共享区。
  *
- * @param new_voltage_register_raw INA228 总线电压折算后的兼容值，1.25mV/单位。
- * @param new_shunt_register_raw INA228 分流电压折算后的兼容值，2.5uV/单位。
+ * @param new_voltage_register_raw 校准前总线电压折算后的兼容值，1.25mV/单位。
+ * @param new_shunt_register_raw 分流电压折算后的兼容值，2.5uV/单位。
  * @param new_voltage_uv 换算后的总线电压，单位 uV。
  * @param new_current_uA 补偿后的电流，单位 uA。
  *
@@ -87,73 +93,54 @@ static CurrentCalib::params_t read_current_calib_params() {
             params.points[i].offset_current_100uA = current_calib_params.points[i].offset_current_100uA;
         }
         params.temperature_K = current_calib_params.temperature_K;
+        local_voltage_k = VoltageCalib::effective_k(local_frontend, ina226_voltage_k);
+        active_voltage_k = local_voltage_k;
     });
     return params;
 }
 
-constexpr uint32_t INA228_READ_TIMEOUT_MS = 1000;
-// INA228 reset/config/首样本等待期间置位，避免 ina228_run() 在恢复流程内再次递归触发恢复。
-static bool        ina228_configuring     = false;
+constexpr uint32_t FRONTEND_READ_TIMEOUT_MS = 1000;
+// 采样前端 reset/config/首样本等待期间置位，避免 frontend_run() 在恢复流程内再次递归触发恢复。
+static bool        frontend_configuring     = false;
 
-bool ulp_ina228_init();
+bool ulp_frontend_init();
 void timer_run(void);
 
 /**
- * @brief 执行一次 INA228 采样轮询并发布成功样本。
+ * @brief 执行一次前端采样轮询并发布成功样本。
  *
  * @note 读寄存器失败或转换未完成时先保留最后一次有效样本；连续失败超过
- *       INA228_READ_TIMEOUT_MS 后置位 `ulp_ina228_read_timeout`，并在非配置流程中
- *       阻塞执行 INA228 重新初始化，直到恢复首个有效样本。
+ *       FRONTEND_READ_TIMEOUT_MS 后置位 `ulp_ina228_read_timeout`，并在非配置流程中
+ *       阻塞执行采样前端重新初始化，直到恢复首个有效样本。
  */
-void ina228_run() {
+void frontend_run() {
     // 最近一次成功发布完整电压/电流样本的 LP 毫秒时间，用于判断数据是否陈旧。
     static uint32_t last_success_ms              = 0;
-    const auto      handle_ina228_read_not_ready = [&]() {
-        // 只在本函数内判断连续采样失败时长，避免把 INA228 私有状态暴露为文件级变量。
-        if ((now_time_ms - last_success_ms) <= INA228_READ_TIMEOUT_MS) {
+    const auto      handle_read_not_ready = [&]() {
+        // 只在本函数内判断连续采样失败时长，避免把采样前端私有状态暴露为文件级变量。
+        if ((now_time_ms - last_success_ms) <= FRONTEND_READ_TIMEOUT_MS) {
             return;
         }
 
         // 采样失效时保留最后一次有效样本，避免把通信异常伪装成 0V 欠压。
         with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = true; });
         // 配置流程内部只标记超时，由外层 init 循环重新 reset/config，避免递归恢复。
-        if (ina228_configuring) {
+        if (frontend_configuring) {
             return;
         }
-        ulp_ina228_init();
+        ulp_frontend_init();
         last_success_ms = now_time_ms;
     };
 
-    uint16_t diagnostic = 0;
-    if (INA228::read16(INA228::DIAG_ALRT, &diagnostic) != ESP_OK) {
-        handle_ina228_read_not_ready();
+    Sampling::Sample sample = {};
+    if (!Sampling::read(local_frontend, sample)) {
+        handle_read_not_ready();
         return;
     }
-    if (!(diagnostic & (1 << 1))) { // CNVRF 位为 0 表示本轮转换未完成。
-        handle_ina228_read_not_ready();
-        return;
-    }
-
-    uint32_t vbus_register = 0;
-    uint32_t vshunt_register = 0;
-    /* 读取电压寄存器 */
-    if (INA228::read24(INA228::VBUS, &vbus_register) != ESP_OK) {
-        handle_ina228_read_not_ready();
-        return;
-    }
-
-    /* 读取电流寄存器 */
-    if (INA228::read24(INA228::VSHUNT, &vshunt_register) != ESP_OK) {
-        handle_ina228_read_not_ready();
-        return;
-    }
-
-    const uint32_t ina228_voltage_raw = INA228::decode_unsigned20(vbus_register);
-    // VBUS: 195.3125uV/LSB. VSHUNT wide range: 312.5nV/LSB; divide by 8 to retain
-    // the existing calibration domain of one raw unit per 2.5uV.
-    const uint32_t new_voltage_uv = static_cast<uint32_t>((static_cast<uint64_t>(ina228_voltage_raw) * 3125U) / 16U);
-    const uint16_t new_voltage_register_raw = static_cast<uint16_t>(new_voltage_uv / 1250U);
-    const int16_t new_shunt_register_raw = static_cast<int16_t>(INA228::decode_signed20(vshunt_register) / 8);
+    const uint32_t new_voltage_uv = VoltageCalib::apply(sample.voltage_uv, local_voltage_k);
+    // Diagnostic raw stays before voltage calibration, including the INA226 divider.
+    const uint16_t new_voltage_register_raw = sample.voltage_raw;
+    const int16_t new_shunt_register_raw = sample.shunt_raw;
     int32_t        new_current_uA    = 0;
     int32_t        board_temperature = 0;
     with_shared_lock_void([&]() { board_temperature = Board_temperature; });
@@ -178,16 +165,16 @@ void ina228_run() {
 }
 
 /**
- * @brief 初始化 INA228 并等待首个有效电压样本。
+ * @brief 初始化采样前端并等待首个有效电压样本。
  *
  * @return true 初始化、配置和首个样本读取成功；当前实现会一直重试，不返回 false。
  *
- * @note LP Core 的核心职责就是 INA228 采样，因此初始化和恢复阶段允许阻塞重试。
+ * @note LP Core 的核心职责就是前端采样，因此初始化和恢复阶段允许阻塞重试。
  *       恢复期间置位 `ulp_i2c_init_err` 与 `ulp_ina228_read_timeout`，HP 核保护逻辑会据此
- *       暂停 INA228 相关保护，避免用无效数据关断输出。
+ *       暂停采样相关保护，避免用无效数据关断输出。
  */
-bool ulp_ina228_init() {
-    ina228_configuring = true;
+bool ulp_frontend_init() {
+    frontend_configuring = true;
     with_shared_lock_void([]() {
         ulp_state_p.ulp_state_bits.ulp_i2c_init_err        = true;
         ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = true;
@@ -196,52 +183,44 @@ bool ulp_ina228_init() {
     while (true) {
         // 恢复循环中仍维护 LP 毫秒计数，避免超时判断长期停滞。
         timer_run();
-        if (INA228::reset() != ESP_OK) {
+        local_frontend = Sampling::detect();
+        with_shared_lock_void([]() {
+            sampling_frontend = static_cast<uint32_t>(local_frontend);
+            ina228_manufacturer_id = local_frontend == SamplingFrontend::Unknown ? 0 : INA228::MANUFACTURER_ID;
+            local_voltage_k = VoltageCalib::effective_k(local_frontend, ina226_voltage_k);
+            active_voltage_k = local_voltage_k;
+        });
+        if (local_frontend == SamplingFrontend::Unknown || Sampling::reset(local_frontend) != ESP_OK) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
-
         ulp_lp_core_delay_us(MS_TO_US(5));
         timer_run();
-
-        uint16_t new_ina228_manufacturer_id = 0;
-        if (INA228::read16(INA228::MANUFACTURER, &new_ina228_manufacturer_id) != ESP_OK ||
-            new_ina228_manufacturer_id != INA228::MANUFACTURER_ID) {
-            ulp_lp_core_delay_us(MS_TO_US(20));
-            continue;
-        }
-        with_shared_lock_void([=]() { ina228_manufacturer_id = new_ina228_manufacturer_id; });
-
-        uint16_t device_id = 0;
-        if (INA228::read16(INA228::DEVICE, &device_id) != ESP_OK ||
-            (device_id & INA228::DEVICE_ID_MASK) != INA228::DEVICE_ID) {
-            ulp_lp_core_delay_us(MS_TO_US(20));
-            continue;
-        }
-        if (INA228::configure() != ESP_OK) {
+        if (Sampling::configure(local_frontend) != ESP_OK) {
             ulp_lp_core_delay_us(MS_TO_US(20));
             continue;
         }
 
+        with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = true; });
         const uint32_t sample_wait_start_ms = now_time_ms;
         while (true) {
             timer_run();
-            ina228_run();
+            frontend_run();
             bool sample_ready = false;
             with_shared_lock_void(
-                [&]() { sample_ready = voltage_uv != 0 && !ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout; });
+                [&]() { sample_ready = !ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout; });
             if (sample_ready) {
-                // 首个有效样本发布后，测量链路重新变为可靠，HP 核可恢复 INA228 相关保护。
+                // 首个有效样本发布后，测量链路重新变为可靠，HP 核可恢复采样相关保护。
                 with_shared_lock_void([]() {
                     ulp_state_p.ulp_state_bits.ulp_i2c_init_err        = false;
                     ulp_state_p.ulp_state_bits.ulp_ina228_init_ok      = true;
                     ulp_state_p.ulp_state_bits.ulp_ina228_read_timeout = false;
                 });
-                ina228_configuring = false;
+                frontend_configuring = false;
                 return true;
             }
-            if ((now_time_ms - sample_wait_start_ms) > INA228_READ_TIMEOUT_MS) {
-                // 配置成功但首样本迟迟不可用，重新 reset/config，处理 INA228 卡死或总线瞬断。
+            if ((now_time_ms - sample_wait_start_ms) > FRONTEND_READ_TIMEOUT_MS) {
+                // 配置成功但首样本迟迟不可用，重新 reset/config，处理采样前端卡死或总线瞬断。
                 break;
             }
             ulp_lp_core_delay_us(100);
@@ -380,18 +359,18 @@ template <typename F> void app_loop_every_ms(uint32_t interval_ms, F&& action) {
 /**
  * @brief LP Core 应用入口。
  *
- * @return 不返回；INA228 初始化会阻塞重试直到成功，随后进入主循环。
+ * @return 不返回；前端初始化会阻塞重试直到成功，随后进入主循环。
  *
  *
- * @note 主循环持续轮询 INA228、维护毫秒计数、处理校准重载并执行电量积分。
+ * @note 主循环持续轮询采样前端、维护毫秒计数、处理校准重载并执行电量积分。
  */
 int main(void) {
     load_current_calib_params();
-    ulp_ina228_init();
+    ulp_frontend_init();
     with_shared_lock_void([]() { ulp_state_p.ulp_state_bits.ulp_run = true; });
     while (1) {
         timer_run();
-        ina228_run();
+        frontend_run();
 
         // 检查是否需要重新加载校准参数
         app_loop_every_ms(20, check_reload_current_calib_params);
