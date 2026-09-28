@@ -9,7 +9,7 @@ enum Register : uint8_t {
     CONFIG = 0x00, VSHUNT = 0x01, VBUS = 0x02,
     MASK_ENABLE = 0x06, MANUFACTURER = 0xFE, DEVICE = 0xFF,
 };
-// Both footprints use address 0x40 and the same big-endian 16-bit I2C transport.
+// Shared big-endian I2C transport uses the address selected by identity detection.
 inline esp_err_t read16(Register reg, uint16_t* value) {
     return InaI2c::read16(reg, value);
 }

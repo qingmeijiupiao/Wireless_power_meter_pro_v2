@@ -83,17 +83,33 @@
           <summary>校准设置（点击展开）</summary>
           <div class="stack" style="margin-top:10px">
             <div class="stack">
-              <div><strong>K 值校准（必做）</strong></div>
+              <div><strong>电压比例系数 K 校准</strong></div>
+              <div class="muted">电压 K 是无单位的比例系数，与电流 K（µA/寄存器单位）独立。INA226 默认 2，范围 0.5～4；INA228 固定为 1，无需校准。</div>
+              <div class="sub" id="calibVoltageInfo">正在读取采样前端...</div>
+              <div class="grid-2">
+                <div class="field"><label class="label" for="calibVoltageK">电压比例系数 K（无单位）</label><input id="calibVoltageK" type="number" min="0.5" max="4" step="0.000001" disabled></div>
+                <div class="field"><label class="label" for="calibVoltageReal">万用表实测电压 (V)</label><input id="calibVoltageReal" type="number" min="0.001" max="262.14" step="0.001" disabled></div>
+              </div>
+              <div class="actions">
+                <button id="calibVoltageSave" disabled>保存电压 K</button>
+                <button id="calibVoltageMeasured" disabled>按实测电压计算并保存</button>
+                <button class="secondary" id="calibVoltageReset" disabled>恢复电压 K 为 2</button>
+              </div>
+              <div class="muted" id="calibVoltageMsg"></div>
+            </div>
+
+            <div class="stack">
+              <div><strong>电流 K 值校准（必做）</strong></div>
               <div class="muted">用万用表串入回路并保持负载稳定，填入真实电流后点击按钮，系统按 K = 真实电流(uA) ÷ |寄存器原始值| 自动计算并保存。原始值正负均可，取绝对值计算。复刻设备至少要完成这一步。</div>
               <div class="grid-2">
                 <div class="field"><label class="label" for="calibRaw">当前寄存器原始值</label><input id="calibRaw" readonly></div>
                 <div class="field"><label class="label" for="calibReal">真实电流 (A)</label><input id="calibReal" type="number" min="0.001" max="100" step="0.001" placeholder="例如 1.23"></div>
               </div>
               <div class="actions">
-                <button id="calibKApply">自动计算并保存 K</button>
+                <button id="calibKApply">自动计算并保存电流 K</button>
                 <button class="secondary" id="calibKRefresh" type="button">刷新原始值</button>
               </div>
-              <div class="sub" id="calibKPreview">输入真实电流后可预览将写入的 K 值。</div>
+              <div class="sub" id="calibKPreview">输入真实电流后可预览将写入的电流 K 值。</div>
               <div class="muted" id="calibKMsg"></div>
             </div>
 
@@ -111,7 +127,7 @@
 
             <div class="stack">
               <div><strong>点位校准（选做）</strong></div>
-              <div class="muted">冷态下依次施加不同电流，记录寄存器原始值与真实电流，用当前 K 计算并写入该点偏移。大电流点请在通电后尽快读数。</div>
+              <div class="muted">冷态下依次施加不同电流，记录寄存器原始值与真实电流，用当前电流 K 计算并写入该点偏移。大电流点请在通电后尽快读数。</div>
               <div class="grid-2">
                 <div class="field"><label class="label" for="calibPointIndex">校准点</label><select id="calibPointIndex"></select></div>
                 <div class="field"><label class="label" for="calibPointRaw">寄存器原始值</label><input id="calibPointRaw" type="number" min="1" max="32767" step="1"></div>
@@ -125,7 +141,7 @@
             </div>
 
             <div class="actions">
-              <button class="secondary" id="calibResetSecondary">清除温漂与点位（保留 K）</button>
+              <button class="secondary" id="calibResetSecondary">清除电流温漂与点位（保留电流 K）</button>
               <button class="danger" id="calibReboot" disabled>重启设备使校准生效</button>
             </div>
           </div>
@@ -223,16 +239,64 @@
       $('protectTable').innerHTML = '<tr><th>项目</th><th>状态</th><th>当前值</th><th>告警/恢复</th><th>保护/恢复</th></tr>' + prot.channels.map(c => `<tr><td>${protectName[c.name] || c.name}</td><td>${stateName[c.state] || c.state_text}</td><td>${fmt(c.value, 3)} ${c.unit}</td><td>${fmt(c.warning, 3)} / ${fmt(c.warning_recovery, 3)}</td><td>${fmt(c.protect, 3)} / ${fmt(c.protect_recovery, 3)}</td></tr>`).join('');
       $('calibHead').className = 'info-list';
       $('calibHead').innerHTML = infoHtml([
-        ['电流系数', calib.current_base_k],
+        ['电流 K（µA/寄存器单位）', calib.current_base_k],
+        ['电压 K（当前生效）', calib.voltage ? fmt(calib.voltage.active_k, 6) : '--'],
+        ['INA226 电压 K（已保存）', calib.voltage ? fmt(calib.voltage.stored_ina226_k, 6) : '--'],
         ['采样电阻', `${fmt(calib.sample_resistance_mohm, 3)} mΩ`],
         ['温度系数', calib.temperature_k],
         ['基准温度', `${fmt(calib.base_temperature_c, 2)} C`]
       ]);
       $('calibTable').innerHTML = '<tr><th>点位</th><th>寄存器值</th><th>无偏移电流(mA)</th><th>偏移(uA)</th></tr>' + calib.points.map(p => `<tr><td>${p.index}</td><td>${p.register_value}</td><td>${p.no_offset_ma}</td><td>${p.offset_ua}</td></tr>`).join('');
       calibParams = calib;
+      renderVoltageControls();
       diagInfo = diag;
       renderCalibControls(live);
     }
+    const voltageControlIds = ['calibVoltageK', 'calibVoltageReal', 'calibVoltageSave', 'calibVoltageMeasured', 'calibVoltageReset'];
+    let voltageSaving = false;
+    function renderVoltageControls() {
+      const v = calibParams && calibParams.voltage;
+      const editable = !!(v && v.editable && !voltageSaving);
+      voltageControlIds.forEach(id => { $(id).disabled = !editable; });
+      if (!v || !v.available) {
+        $('calibVoltageInfo').textContent = '采样前端不可用，暂不能校准电压。';
+      } else if (v.frontend === 228) {
+        $('calibVoltageK').value = '1';
+        $('calibVoltageInfo').textContent = 'INA228：电压 K 恒定为 1，无需校准。';
+      } else {
+        if (document.activeElement !== $('calibVoltageK')) $('calibVoltageK').value = v.stored_ina226_k;
+        $('calibVoltageInfo').textContent = `INA226：生效电压 K=${fmt(v.active_k, 6)}，已保存电压 K=${fmt(v.stored_ina226_k, 6)}；校准前采样电压 ${fmt(v.uncalibrated_v, 4)} V。保存后重启生效。`;
+      }
+    }
+    async function saveVoltage(body) {
+      if (voltageSaving || !calibParams || !calibParams.voltage || !calibParams.voltage.editable) return;
+      voltageSaving = true;
+      renderVoltageControls();
+      $('calibVoltageMsg').textContent = '正在保存电压 K...';
+      try {
+        const res = await fetch('/api/calibration/voltage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.reason || '保存失败');
+        markCalibSaved($('calibVoltageMsg'), `已保存电压 K=${fmt(data.voltage_k, 6)}，重启后生效。`);
+        await load();
+      } catch (e) {
+        $('calibVoltageMsg').textContent = `保存失败：${e.message}`;
+      } finally {
+        voltageSaving = false;
+        renderVoltageControls();
+      }
+    }
+    $('calibVoltageSave').onclick = () => {
+      const k = Number($('calibVoltageK').value);
+      if (!Number.isFinite(k) || k < 0.5 || k > 4) { $('calibVoltageMsg').textContent = '电压 K 必须在 0.5～4 之间。'; return; }
+      saveVoltage({ voltage_k_ppm: Math.round(k * 1000000) });
+    };
+    $('calibVoltageMeasured').onclick = () => {
+      const real = Number($('calibVoltageReal').value);
+      if (!Number.isFinite(real) || real < 0.001 || real > 262.14) { $('calibVoltageMsg').textContent = '请填写有效的万用表实测电压 (V)。'; return; }
+      saveVoltage({ real_voltage_mv: Math.round(real * 1000) });
+    };
+    $('calibVoltageReset').onclick = () => saveVoltage({ reset: true });
     function currentRaw() {
       const ina = diagInfo && diagInfo.ina228;
       return ina && ina.available ? ina.current_register_raw : null;
@@ -248,8 +312,8 @@
       const raw = Number($('calibRaw').value);
       const realA = Number($('calibReal').value);
       const k = calcK(realA, raw);
-      if (!k) { $('calibKPreview').textContent = '输入真实电流后可预览将写入的 K 值。'; return; }
-      $('calibKPreview').textContent = `预计 K = ${k}，等效采样电阻 ≈ ${(2500 / k).toFixed(3)} mΩ（当前 K=${calibParams ? calibParams.current_base_k : '--'}）`;
+      if (!k) { $('calibKPreview').textContent = '输入真实电流后可预览将写入的电流 K 值。'; return; }
+      $('calibKPreview').textContent = `预计电流 K = ${k}，等效采样电阻 ≈ ${(2500 / k).toFixed(3)} mΩ（当前电流 K=${calibParams ? calibParams.current_base_k : '--'}）`;
     }
     function renderCalibControls(live) {
       const raw = currentRaw();
@@ -285,7 +349,7 @@
       $('calibKMsg').textContent = '正在保存...';
       try {
         const data = await postCalibration({ real_current_ma: Math.round(realA * 1000) });
-        markCalibSaved($('calibKMsg'), `已保存 K=${data.current_base_k}，重启后生效。`);
+        markCalibSaved($('calibKMsg'), `已保存电流 K=${data.current_base_k}，重启后生效。`);
         await load();
       } catch (e) {
         $('calibKMsg').textContent = `保存失败：${e.message}`;
@@ -329,7 +393,7 @@
       }
     };
     $('calibResetSecondary').onclick = async () => {
-      if (!confirm('确定清除温漂系数与全部点位（保留 K）？')) return;
+      if (!confirm('确定清除电流温漂系数与全部点位（保留电流 K）？')) return;
       $('calibResetSecondary').disabled = true;
       try {
         await postCalibration({ reset_secondary: true });

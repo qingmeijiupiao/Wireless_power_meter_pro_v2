@@ -22,6 +22,11 @@ struct Runtime {
     uint32_t active_k = SCALE;
     uint32_t uncalibrated_uv = 0;
     bool available = false;
+    uint32_t lp_state = 0;
+    uint32_t address_mask = 0;
+    uint32_t i2c_address = 0;
+    int32_t identity_error[4] = {};
+    uint16_t identity_value[4] = {};
 };
 Runtime get_runtime();
 } // namespace VoltageCalib

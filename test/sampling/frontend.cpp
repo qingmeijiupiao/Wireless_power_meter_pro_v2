@@ -12,10 +12,12 @@ static std::map<uint8_t, std::pair<uint32_t, size_t>> registers;
 static std::vector<std::pair<uint8_t, uint16_t>> writes;
 static int failed_register = -1;
 static int reset_failures = 0;
+static uint16_t chip_address = 0x40;
 
 esp_err_t lp_core_i2c_master_write_read_device(int, uint16_t address, const uint8_t* tx, size_t tx_size,
                                               uint8_t* rx, size_t rx_size, int32_t) {
-    assert(address == 0x40 && tx_size == 1);
+    assert(tx_size == 1);
+    if (address != chip_address) return -1;
     const auto it = registers.find(tx[0]);
     if (tx[0] == failed_register || it == registers.end()) return -1;
     assert(rx_size == it->second.second); // Catch accidental 16/24-bit register confusion.
@@ -23,17 +25,19 @@ esp_err_t lp_core_i2c_master_write_read_device(int, uint16_t address, const uint
     return ESP_OK;
 }
 esp_err_t lp_core_i2c_master_write_to_device(int, uint16_t address, const uint8_t* tx, size_t size, int32_t) {
-    assert(address == 0x40 && size == 3);
+    assert(address == chip_address && size == 3);
     const uint16_t value = (uint16_t(tx[1]) << 8) | tx[2];
     writes.emplace_back(tx[0], value);
     if (value == 0x8000 && reset_failures > 0) { --reset_failures; return -1; }
     return ESP_OK;
 }
 static void chip226(uint16_t revision = 0x2260) {
+    chip_address = 0x40;
     registers = {{0xFE, {0x5449, 2}}, {0xFF, {revision, 2}}, {6, {8, 2}},
                  {2, {9600, 2}}, {1, {800, 2}}}; // 12V at pin, 2mV shunt.
 }
 static void chip228() {
+    chip_address = 0x40;
     registers = {{0x3E, {0x5449, 2}}, {0x3F, {0x2281, 2}}, {0x0B, {2, 2}},
                  {5, {122880U << 4, 3}}, {4, {6400U << 4, 3}}}; // 24V, 2mV shunt.
 }
@@ -42,6 +46,15 @@ int main() {
     assert(Sampling::detect() == F::Unknown);
     chip226();
     assert(Sampling::detect() == F::INA226);
+    Sampling::IdentityDiagnostics identity;
+    assert(Sampling::detect(&identity) == F::INA226);
+    assert(identity.error[2] == ESP_OK && identity.error[3] == ESP_OK);
+    assert(identity.value[2] == 0x5449 && identity.value[3] == 0x2260);
+    failed_register = 0xFE;
+    assert(Sampling::detect(&identity) == F::Unknown);
+    assert(identity.error[2] != ESP_OK && identity.value[2] == 0);
+    assert(identity.error[3] == ESP_OK && identity.value[3] == 0x2260);
+    failed_register = -1;
     chip226(0x2261);
     assert(Sampling::detect() == F::INA226);
     registers[0xFE].first = 0x1234;
@@ -65,6 +78,14 @@ int main() {
     Board_temperature = 3500;
     ina226_voltage_k = 2000000;
     load_current_calib_params();
+    for (unsigned address = 0x40; address <= 0x4f; ++address) {
+        chip_address = address;
+        assert(ulp_frontend_init());
+        assert(frontend_i2c_address == address && InaI2c::active_address == address);
+        assert(sampling_frontend == 226 && voltage_uv == 24000000);
+        assert(frontend_address_mask == (1U << (address - 0x40)));
+    }
+    chip_address = 0x40;
     reset_failures = 1;
     assert(ulp_frontend_init()); // Retries a failed reset.
     assert(sampling_frontend == 226 && voltage_uv == 24000000 && current_uA == 1000000);

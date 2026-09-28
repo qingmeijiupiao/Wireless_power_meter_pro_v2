@@ -80,6 +80,13 @@ bool LP_Core_GetSnapshot(LP_Core_Snapshot* snapshot) {
     snapshot->ina228_manufacturer_id = static_cast<uint16_t>(ulp_ina228_manufacturer_id);
     snapshot->frontend              = static_cast<SamplingFrontend>(ulp_sampling_frontend);
     snapshot->voltage_k             = ulp_active_voltage_k;
+    snapshot->address_mask          = ulp_frontend_address_mask;
+    snapshot->i2c_address           = ulp_frontend_i2c_address;
+    const volatile uint32_t* identity = ulp_frontend_identity;
+    for (unsigned i = 0; i < 4; ++i) {
+        snapshot->identity_error[i] = static_cast<int32_t>(identity[i]);
+        snapshot->identity_value[i] = static_cast<uint16_t>(identity[i + 4]);
+    }
     snapshot->meter_uah              = read_shared_int64(ulp_meter_uah);
     snapshot->meter_uwh              = read_shared_int64(ulp_meter_uwh);
     ulp_lp_core_exit_critical(rtc_shared_lock);
@@ -92,6 +99,13 @@ VoltageCalib::Runtime VoltageCalib::get_runtime() {
     if (!LP_Core_GetSnapshot(&snapshot)) return result;
     result.frontend = snapshot.frontend;
     result.active_k = snapshot.voltage_k;
+    result.lp_state = snapshot.state.ulp_state_raw;
+    result.address_mask = snapshot.address_mask;
+    result.i2c_address = snapshot.i2c_address;
+    for (unsigned i = 0; i < 4; ++i) {
+        result.identity_error[i] = snapshot.identity_error[i];
+        result.identity_value[i] = snapshot.identity_value[i];
+    }
     result.uncalibrated_uv = static_cast<uint32_t>(snapshot.voltage_register_raw) * 1250U;
     result.available = snapshot.state.ulp_state_bits.ulp_ina228_init_ok &&
                        !snapshot.state.ulp_state_bits.ulp_ina228_read_timeout &&

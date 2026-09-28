@@ -88,6 +88,7 @@ OTA 诊断统一使用轻量文本事件，不附加结构化状态快照。上�
 | `/api/protect` | GET/POST | 查询保护详情、开启/关闭保护功能，或更新持久化保护阈值 |
 | `/api/can` | GET/POST | 查询或设置 CAN 波特率和设备 ID |
 | `/api/calibration` | GET/POST | 查询或更新电流校准参数（K 值、温漂、插值点位） |
+| `/api/calibration/voltage` | POST | 独立更新INA226电压比例系数；INA228固定为1，拒绝修改 |
 | `/api/diagnostics` | GET | 查询 INA228 原始寄存器等诊断数据 |
 | `/api/rtos/stats` | GET/POST | 查询或配置任务运行统计采样 |
 | `/api/logs` | GET | 按 `since` 增量读取最近 8KB 实时 ESP 日志 |
@@ -272,6 +273,10 @@ WebBackend::start_with_wifi_service();
 ### GET/POST `/api/calibration`
 
 GET 返回电流校准参数快照（`current_base_k`、`sample_resistance_mohm`、`temperature_k`、`base_temperature_c` 和 6 个点位）。POST 支持校准写入，可单独或组合提交字段，至少提供一项操作：
+
+GET还返回`voltage`对象：`frontend`（0/226/228）、`available`、`editable`、`active_k`、`stored_ina226_k`和`uncalibrated_v`（校准前电压，单位V）。电流K单位为µA/寄存器单位，电压K为无单位比例，两者独立。
+
+电压写入使用`POST /api/calibration/voltage`，以下操作每次只能选择一项：`{"voltage_k_ppm":2000000}`设置K=2（范围500000～4000000），`{"real_voltage_mv":4180}`按万用表电压计算K，或`{"reset":true}`恢复默认K=2。必须已识别INA226且采样有效；按实测电压计算时校准前电压不能为0。写入独立NVS键`V226_K`，保留全部电流校准参数，重启后生效。INA228无需电压校准，固定K=1。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|

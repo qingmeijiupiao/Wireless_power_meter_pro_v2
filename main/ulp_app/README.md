@@ -20,9 +20,9 @@ flowchart TD
 
 ## INA226配置及自动识别
 
-地址固定0x40（当前板级连接），先读INA228的0x3E/0x3F，再读INA226的0xFE/0xFF；
+按0x40～0x4F顺序检查地址，优先0x40；每个地址先读INA228的0x3E/0x3F，再读INA226的0xFE/0xFF；
 厂商必须为0x5449，器件按0xFFF0掩码分别匹配0x2280和0x2260（兼容0x2261）。
-未知器件不猜测型号，不写配置，进入重试。恢复时重新识别。
+仅对身份匹配的器件执行复位、配置和采样；未知器件不猜测型号、不写配置，进入重试。恢复时重新识别型号和地址。
 INA226 CONFIG=0x4727：连续VBUS/VSHUNT，1.1ms/通道，64次平均，约140.8ms一组；
 Mask/Enable bit3为转换完成标志。VBUS为1.25mV/LSB，VSHUNT为有符号2.5µV/LSB。
 两种前端共用原有电流校准、温漂补偿、积分和异常恢复。
@@ -36,7 +36,7 @@ INA228电压k恒定为1。诊断raw始终是校准前的电压，校准后电压
 
 | 项目 | 当前代码 |
 |---|---|
-| 地址 | 0x40，LP I2C 400kHz，HP侧配置GPIO6/7 |
+| 地址 | 自动识别0x40～0x4F，LP I2C 400kHz，HP侧配置GPIO6/7 |
 | ID | manufacturer=0x5449，device按0xFFF0掩码匹配0x2280 |
 | CONFIG | 0x0000，ADCRANGE=0 |
 | ADC_CONFIG | 连续VBUS/VSHUNT/TEMP；三路1052μs转换时间，64次平均 |

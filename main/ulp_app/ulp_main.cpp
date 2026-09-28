@@ -24,6 +24,9 @@ volatile int32_t current_uA                          LP_VAR;
 volatile int16_t shunt_register_raw                  LP_VAR;
 volatile uint16_t ina228_manufacturer_id             LP_VAR;
 volatile uint32_t sampling_frontend                  LP_VAR;
+volatile uint32_t frontend_identity[8]               LP_VAR;
+volatile uint32_t frontend_address_mask              LP_VAR;
+volatile uint32_t frontend_i2c_address               LP_VAR;
 volatile uint32_t ina226_voltage_k                   LP_VAR;
 volatile uint32_t active_voltage_k                   LP_VAR;
 static SamplingFrontend local_frontend = SamplingFrontend::Unknown;
@@ -183,12 +186,34 @@ bool ulp_frontend_init() {
     while (true) {
         // 恢复循环中仍维护 LP 毫秒计数，避免超时判断长期停滞。
         timer_run();
-        local_frontend = Sampling::detect();
+        Sampling::IdentityDiagnostics identity;
+        local_frontend = Sampling::detect(&identity);
+        uint32_t address_mask = 0;
+        if (local_frontend == SamplingFrontend::Unknown) {
+            // Read CONFIG without writing configuration, across all INA226 strap addresses.
+            uint8_t reg = 0, data[2];
+            for (unsigned address = 0x40; address <= 0x4f; ++address) {
+                if (lp_core_i2c_master_write_read_device(LP_I2C_NUM_0, address, &reg, 1,
+                                                        data, sizeof(data), InaI2c::I2C_TIMEOUT) == ESP_OK) {
+                    address_mask |= 1U << (address - 0x40);
+                }
+            }
+        } else {
+            address_mask = 1U << (InaI2c::active_address - 0x40);
+        }
         with_shared_lock_void([]() {
             sampling_frontend = static_cast<uint32_t>(local_frontend);
             ina228_manufacturer_id = local_frontend == SamplingFrontend::Unknown ? 0 : INA228::MANUFACTURER_ID;
             local_voltage_k = VoltageCalib::effective_k(local_frontend, ina226_voltage_k);
             active_voltage_k = local_voltage_k;
+        });
+        with_shared_lock_void([&]() {
+            frontend_i2c_address = InaI2c::active_address;
+            frontend_address_mask = address_mask;
+            for (unsigned i = 0; i < 4; ++i) {
+                frontend_identity[i] = static_cast<uint32_t>(identity.error[i]);
+                frontend_identity[i + 4] = identity.value[i];
+            }
         });
         if (local_frontend == SamplingFrontend::Unknown || Sampling::reset(local_frontend) != ESP_OK) {
             ulp_lp_core_delay_us(MS_TO_US(20));

@@ -123,6 +123,7 @@ esp_err_t protect_handler(WebServer::Request* request);
 esp_err_t can_handler(WebServer::Request* request);
 /** @brief 查询或更新电流校准参数。 */
 esp_err_t calibration_handler(WebServer::Request* request);
+esp_err_t voltage_calibration_handler(WebServer::Request* request);
 /** @brief 返回底层测量诊断信息。 */
 esp_err_t diagnostics_handler(WebServer::Request* request);
 /** @brief 采样并返回 RTOS 任务统计。 */

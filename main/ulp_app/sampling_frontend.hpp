@@ -10,18 +10,54 @@ struct Sample {
     int16_t shunt_raw;
 };
 
-inline SamplingFrontend detect() {
+struct IdentityDiagnostics {
+    int32_t error[4] = {};
+    uint16_t value[4] = {};
+};
+
+inline SamplingFrontend detect_at_current_address(IdentityDiagnostics* diagnostics) {
+    IdentityDiagnostics d;
     uint16_t manufacturer = 0, device = 0;
-    if (INA228::read16(INA228::MANUFACTURER, &manufacturer) == ESP_OK &&
-        manufacturer == INA228::MANUFACTURER_ID && INA228::read16(INA228::DEVICE, &device) == ESP_OK &&
+    d.error[0] = INA228::read16(INA228::MANUFACTURER, &manufacturer);
+    d.value[0] = manufacturer;
+    d.error[1] = INA228::read16(INA228::DEVICE, &device);
+    d.value[1] = device;
+    if (d.error[0] == ESP_OK && d.error[1] == ESP_OK &&
+        manufacturer == INA228::MANUFACTURER_ID &&
         (device & INA228::DEVICE_ID_MASK) == INA228::DEVICE_ID) {
+        if (diagnostics) *diagnostics = d;
         return SamplingFrontend::INA228;
     }
-    if (INA226::read16(INA226::MANUFACTURER, &manufacturer) == ESP_OK &&
-        manufacturer == INA226::MANUFACTURER_ID && INA226::read16(INA226::DEVICE, &device) == ESP_OK &&
+    manufacturer = device = 0;
+    d.error[2] = INA226::read16(INA226::MANUFACTURER, &manufacturer);
+    d.value[2] = manufacturer;
+    d.error[3] = INA226::read16(INA226::DEVICE, &device);
+    d.value[3] = device;
+    if (diagnostics) *diagnostics = d;
+    if (d.error[2] == ESP_OK && d.error[3] == ESP_OK &&
+        manufacturer == INA226::MANUFACTURER_ID &&
         (device & INA226::DEVICE_ID_MASK) == INA226::DEVICE_ID) {
         return SamplingFrontend::INA226;
     }
+    return SamplingFrontend::Unknown;
+}
+
+inline SamplingFrontend detect(IdentityDiagnostics* diagnostics = nullptr) {
+    IdentityDiagnostics default_identity;
+    // Prefer the schematic's 0x40, then accept any valid address strap combination.
+    // Never reset/configure a device unless both identity registers match.
+    for (unsigned address = 0x40; address <= 0x4f; ++address) {
+        InaI2c::active_address = static_cast<uint8_t>(address);
+        IdentityDiagnostics identity;
+        const auto type = detect_at_current_address(&identity);
+        if (address == 0x40) default_identity = identity;
+        if (type != SamplingFrontend::Unknown) {
+            if (diagnostics) *diagnostics = identity;
+            return type;
+        }
+    }
+    InaI2c::active_address = 0x40;
+    if (diagnostics) *diagnostics = default_identity;
     return SamplingFrontend::Unknown;
 }
 

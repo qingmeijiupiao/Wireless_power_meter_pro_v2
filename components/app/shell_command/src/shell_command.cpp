@@ -962,6 +962,22 @@ esp_err_t init() {
             printf("ina_register_raw current: %d, voltage: %" PRIu32 ", available: %" PRIu32 "\n",
                    state.current_register_raw, static_cast<uint32_t>(state.voltage_register_raw),
                    static_cast<uint32_t>(state.flags.lp_ina228_initialized ? 1U : 0U));
+            const auto snapshot = VoltageCalib::get_runtime();
+            {
+                printf("Frontend: INA%lu, LP state: 0x%08lx, I2C address: 0x%02lx\n",
+                       static_cast<uint32_t>(snapshot.frontend), snapshot.lp_state, snapshot.i2c_address);
+                printf("CONFIG read ACK mask (bit0=0x40 .. bit15=0x4f): 0x%04lx\n", snapshot.address_mask);
+                const unsigned regs[] = {0x3e, 0x3f, 0xfe, 0xff};
+                for (unsigned i = 0; i < 4; ++i) {
+                    if (i >= 2 && snapshot.frontend == SamplingFrontend::INA228) {
+                        printf("Identity reg 0x%02x: not probed (INA228 identified)\n", regs[i]);
+                        continue;
+                    }
+                    printf("Identity reg 0x%02x: 0x%04x, error: %ld (%s)\n", regs[i],
+                           snapshot.identity_value[i], snapshot.identity_error[i],
+                           esp_err_to_name(snapshot.identity_error[i]));
+                }
+            }
             return 0;
         }));
 

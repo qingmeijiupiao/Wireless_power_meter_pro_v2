@@ -525,6 +525,16 @@ esp_err_t calibration_bad_request(WebServer::Request* request, const char* reaso
 }
 
 bool append_calibration_fields(char* out, size_t out_size, size_t* pos, const CurrentCalib::params_t& params) {
+    const auto voltage = VoltageCalib::get_runtime();
+    const uint32_t stored_k = VoltageCalib::ina226_k_data.read();
+    bool voltage_ok = append_checked(out, out_size, pos,
+        "\"voltage\":{\"frontend\":%lu,\"available\":%s,\"editable\":%s,"
+        "\"active_k\":%.6f,\"stored_ina226_k\":%.6f,\"uncalibrated_v\":%.6f},",
+        static_cast<uint32_t>(voltage.frontend), voltage.available ? "true" : "false",
+        voltage.frontend == SamplingFrontend::INA226 && voltage.available ? "true" : "false",
+        voltage.active_k / 1000000.0,
+        (VoltageCalib::valid(stored_k) ? stored_k : VoltageCalib::DEFAULT_INA226) / 1000000.0,
+        voltage.uncalibrated_uv / 1000000.0);
     const float sample_resistance_mohm = params.current_base_K == 0 ? 0.0f : 2500.0f / params.current_base_K;
     bool        ok                     = append_checked(
         out, out_size, pos,
@@ -541,9 +551,63 @@ bool append_calibration_fields(char* out, size_t out_size, size_t* pos, const Cu
                             params.points[i].register_value * params.current_base_K / 1000,
                             params.points[i].offset_current_100uA * 100);
     }
-    return ok && append_checked(out, out_size, pos, "]");
+    return voltage_ok && ok && append_checked(out, out_size, pos, "]");
 }
 } // namespace
+
+/** POST /api/calibration/voltage: independent voltage multiplier, never writes CUR_CAL. */
+esp_err_t voltage_calibration_handler(WebServer::Request* request) {
+    const esp_err_t ret = WebServer::load_body(request);
+    if (ret != ESP_OK) return ret;
+    const auto voltage = VoltageCalib::get_runtime();
+    if (voltage.frontend == SamplingFrontend::INA228) {
+        return calibration_bad_request(request, "ina228_voltage_k_fixed");
+    }
+    if (voltage.frontend != SamplingFrontend::INA226 || !voltage.available) {
+        return calibration_bad_request(request, "voltage_sample_unavailable");
+    }
+    const char* body = request->body;
+    const bool has_k = json_has_key(body, "voltage_k_ppm");
+    const bool has_measured = json_has_key(body, "real_voltage_mv");
+    const bool has_reset = json_has_key(body, "reset");
+    if (static_cast<unsigned>(has_k) + has_measured + has_reset != 1) {
+        return calibration_bad_request(request, "choose_one_voltage_operation");
+    }
+    uint32_t k = VoltageCalib::DEFAULT_INA226;
+    if (has_k && (!json_get_uint32(body, "voltage_k_ppm", &k) || !VoltageCalib::valid(k))) {
+        return calibration_bad_request(request, "invalid_voltage_k");
+    }
+    if (has_reset) {
+        bool reset = false;
+        if (!json_get_bool(body, "reset", &reset) || !reset) {
+            return calibration_bad_request(request, "invalid_voltage_reset");
+        }
+    }
+    if (has_measured) {
+        uint32_t mv = 0;
+        if (!json_get_uint32(body, "real_voltage_mv", &mv) || mv == 0 || mv > 262140) {
+            return calibration_bad_request(request, "invalid_real_voltage");
+        }
+        if (voltage.uncalibrated_uv == 0) {
+            return calibration_bad_request(request, "zero_bus_voltage");
+        }
+        const uint64_t scaled = static_cast<uint64_t>(mv) * 1000U * VoltageCalib::SCALE;
+        // Check before rounding so values just outside the allowed range are rejected.
+        if (scaled < static_cast<uint64_t>(VoltageCalib::MIN_K) * voltage.uncalibrated_uv ||
+            scaled > static_cast<uint64_t>(VoltageCalib::MAX_K) * voltage.uncalibrated_uv) {
+            return calibration_bad_request(request, "computed_voltage_k_out_of_range");
+        }
+        k = static_cast<uint32_t>((scaled + voltage.uncalibrated_uv / 2) / voltage.uncalibrated_uv);
+    }
+    if (VoltageCalib::ina226_k_data.set(k) != ESP_OK) {
+        const char* error = "{\"ok\":false,\"reason\":\"persist_failed\"}";
+        return WebServer::send(request, 500, "application/json", error, strlen(error));
+    }
+    DEVICE_EVENT_I(TAG, "calib: voltage_k_ppm=%lu source=web reboot_required=1", k);
+    snprintf(response_buffer, sizeof(response_buffer),
+             "{\"ok\":true,\"reboot_required\":true,\"voltage_k\":%.6f}", k / 1000000.0);
+    return WebServer::send_json(request, response_buffer);
+}
 
 /**
  * @brief GET/POST /api/calibration

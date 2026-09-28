@@ -119,7 +119,7 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 | `protect_threshold` | 查询或设置保护阈值，修改后立即生效并保存到 NVS | `[channel warning warning_recovery protect protect_recovery]` |
 | `wifi` | 管理 WiFi/Web 并显示 ESP-NOW 诊断，支持切换 ESPNOW_ONLY、STA 和 AP 配网 | `status|ip|on|off|connect <ssid> [password]|ap|boot [0/1]|clear` |
 | `espnow` | 管理 ESP-NOW 单设备配对窗口和已保存 peer | `status|pair [timeout_s]|stop|clear` |
-| `ina_register` | 查看电压电流寄存器原始值与初始化状态 | 无 |
+| `ina_register` | 查看电压电流兼容域原始值、LP状态、身份寄存器及I²C错误；识别失败时报告0x40～0x4F的CONFIG读取应答掩码 | 无 |
 | `calibration_params` | 查看电流校准参数 | 无 |
 | `factory_mode` | 进入工厂模式，旁路保护并注册校准写入命令 | 无 |
 

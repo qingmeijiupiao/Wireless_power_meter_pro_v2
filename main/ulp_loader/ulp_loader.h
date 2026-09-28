@@ -31,6 +31,10 @@ struct LP_Core_Snapshot {
     uint16_t       ina228_manufacturer_id = 0;
     SamplingFrontend frontend            = SamplingFrontend::Unknown;
     uint32_t       voltage_k             = VoltageCalib::SCALE;
+    uint32_t       address_mask          = 0;
+    uint32_t       i2c_address           = 0;
+    int32_t        identity_error[4]     = {};
+    uint16_t       identity_value[4]     = {};
     int64_t        meter_uah              = 0;
     int64_t        meter_uwh              = 0;
 };

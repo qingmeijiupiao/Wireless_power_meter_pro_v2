@@ -4,11 +4,12 @@
 #include "ulp_lp_core_i2c.h"
 
 namespace InaI2c {
-constexpr uint8_t I2C_ADDR = 0x40;
+// LP-local address selected only after matching the manufacturer and device IDs.
+static uint8_t active_address = 0x40;
 constexpr int I2C_TIMEOUT = 10 * 20000;
 inline esp_err_t read(uint8_t reg, uint8_t* data, size_t size) {
     uint8_t reg_byte = static_cast<uint8_t>(reg);
-    return lp_core_i2c_master_write_read_device(LP_I2C_NUM_0, I2C_ADDR, &reg_byte, 1, data, size, I2C_TIMEOUT);
+    return lp_core_i2c_master_write_read_device(LP_I2C_NUM_0, active_address, &reg_byte, 1, data, size, I2C_TIMEOUT);
 }
 
 inline esp_err_t read16(uint8_t reg, uint16_t* value) {
@@ -31,7 +32,7 @@ inline esp_err_t read24(uint8_t reg, uint32_t* value) {
 
 inline esp_err_t write16(uint8_t reg, uint16_t value) {
     uint8_t data[3] = {static_cast<uint8_t>(reg), static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value)};
-    return lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, I2C_ADDR, data, sizeof(data), I2C_TIMEOUT);
+    return lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, active_address, data, sizeof(data), I2C_TIMEOUT);
 }
 
 } // namespace InaI2c

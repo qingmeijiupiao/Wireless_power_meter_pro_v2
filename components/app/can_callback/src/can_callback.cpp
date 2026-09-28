@@ -69,7 +69,6 @@ static void diagnostics_task(void*) {
     uint32_t last_bus_off     = 0;
     uint32_t last_bus_error   = 0;
     uint32_t last_rx_overflow = 0;
-    uint32_t last_rx_frames   = 0;
     while (true) {
         const uint32_t tx_failed   = can_bus->get_tx_failed_count();
         const uint32_t bus_off     = can_bus->get_bus_off_count();
@@ -77,7 +76,7 @@ static void diagnostics_task(void*) {
         const uint32_t rx_overflow = can_bus->get_rx_overflow_count();
         const uint32_t rx_frames   = __atomic_load_n(&rx_frame_count, __ATOMIC_RELAXED);
         if (tx_failed != last_tx_failed || bus_off != last_bus_off || bus_error != last_bus_error ||
-            rx_overflow != last_rx_overflow || rx_frames != last_rx_frames) {
+            rx_overflow != last_rx_overflow) {
             twai_node_status_t status     = {};
             twai_node_record_t statistics = {};
             const esp_err_t    ret        = can_bus->get_info(&status, &statistics);
@@ -94,7 +93,6 @@ static void diagnostics_task(void*) {
             last_bus_off     = bus_off;
             last_bus_error   = bus_error;
             last_rx_overflow = rx_overflow;
-            last_rx_frames   = rx_frames;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
