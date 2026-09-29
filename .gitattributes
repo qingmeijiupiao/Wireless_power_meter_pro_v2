@@ -1,2 +1,7 @@
+# 统一文本文件为 LF 行尾，避免 Windows(CRLF) 与 CI(LF) 不一致导致组件哈希/构建差异。
+* text=auto eol=lf
+# Windows 批处理脚本必须保留 CRLF，否则 cmd.exe 无法正确执行。
+*.bat text eol=crlf
+*.cmd text eol=crlf
 # Git 钩子由自带的 POSIX shell 执行，Windows 下必须保持 LF 行尾。
 .githooks/** text eol=lf
