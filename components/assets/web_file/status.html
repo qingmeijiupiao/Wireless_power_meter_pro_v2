@@ -238,14 +238,18 @@
       ]) : '<div class="muted">INA228 原始寄存器暂不可用</div>';
       $('protectTable').innerHTML = '<tr><th>项目</th><th>状态</th><th>当前值</th><th>告警/恢复</th><th>保护/恢复</th></tr>' + prot.channels.map(c => `<tr><td>${protectName[c.name] || c.name}</td><td>${stateName[c.state] || c.state_text}</td><td>${fmt(c.value, 3)} ${c.unit}</td><td>${fmt(c.warning, 3)} / ${fmt(c.warning_recovery, 3)}</td><td>${fmt(c.protect, 3)} / ${fmt(c.protect_recovery, 3)}</td></tr>`).join('');
       $('calibHead').className = 'info-list';
-      $('calibHead').innerHTML = infoHtml([
-        ['电流 K（µA/寄存器单位）', calib.current_base_k],
-        ['电压 K（当前生效）', calib.voltage ? fmt(calib.voltage.active_k, 6) : '--'],
-        ['INA226 电压 K（已保存）', calib.voltage ? fmt(calib.voltage.stored_ina226_k, 6) : '--'],
+      const calibSummary = [
+        ['电流 K（µA/寄存器单位）', calib.current_base_k]
+      ];
+      if (calib.voltage && calib.voltage.frontend === 226) {
+        calibSummary.push(['电压 K（当前生效）', fmt(calib.voltage.active_k, 6)]);
+      }
+      calibSummary.push(
         ['采样电阻', `${fmt(calib.sample_resistance_mohm, 3)} mΩ`],
-        ['温度系数', calib.temperature_k],
+        ['温漂系数', `${calib.temperature_k} ppm/℃`],
         ['基准温度', `${fmt(calib.base_temperature_c, 2)} C`]
-      ]);
+      );
+      $('calibHead').innerHTML = infoHtml(calibSummary);
       $('calibTable').innerHTML = '<tr><th>点位</th><th>寄存器值</th><th>无偏移电流(mA)</th><th>偏移(uA)</th></tr>' + calib.points.map(p => `<tr><td>${p.index}</td><td>${p.register_value}</td><td>${p.no_offset_ma}</td><td>${p.offset_ua}</td></tr>`).join('');
       calibParams = calib;
       renderVoltageControls();
