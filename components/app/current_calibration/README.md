@@ -458,7 +458,7 @@ current_calibration/
 
 工程内直接依赖：
 
-- [`HXC_NVS`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/HXC_NVS/README.md)（`bsp`）
+- [`HXC_NVS`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/HXC_NVS/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

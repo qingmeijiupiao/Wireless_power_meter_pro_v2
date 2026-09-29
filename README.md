@@ -65,12 +65,17 @@ flowchart LR
 main/                       启动编排、LP Core 程序和共享状态加载
 components/
   app/                      产品业务和设备功能
-  middleware/               可复用服务、协议和数据处理
+  middleware/
+    short_circuit_detect/   独立短路脉冲检测
   bsp/                      芯片外设与板级驱动
-  common/                   通用算法和日志契约
   assets/                   字体、图片和 Web 静态资源
 scripts/                    资源生成、固件合并和日志分析工具
 ```
+
+除 `short_circuit_detect` 外，`middleware`、`common` 以及通用 `bsp` 组件已统一迁移到
+[wireless-power-components](https://github.com/qingmeijiupiao/wireless-power-components)
+公共仓库，由 `main/idf_component.yml` 按固定 Git 提交引用；本仓库只保留产品业务、
+板级专用驱动和静态资源。
 
 推荐依赖方向：
 
@@ -181,19 +186,19 @@ ESP-NOW 和普通 WiFi 共用同一套 2.4 GHz 射频，因此不能把它们当
 
 | 领域 | 模块 |
 |------|------|
-| 网络服务 | [WebServer](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/WebServer/README.md) · [DNSServer](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/DNSServer/README.md) · [espnow_link](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/espnow_link/README.md) · [time_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/time_service/README.md) |
-| 数据与升级 | [blackbox](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/blackbox/README.md) · [energy_meter](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/energy_meter/README.md) · [ota_manager](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/ota_manager/README.md) |
-| 设备交互 | [Button](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/Button/README.md) |
+| 网络服务 | [WebServer](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/WebServer/README.md) · [DNSServer](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/DNSServer/README.md) · [espnow_link](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/espnow_link/README.md) · [time_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/time_service/README.md) |
+| 数据与升级 | [blackbox](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/blackbox/README.md) · [energy_meter](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/energy_meter/README.md) · [ota_manager](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/ota_manager/README.md) |
+| 设备交互 | [Button](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/Button/README.md) |
 
 ### BSP、通用库与资源
 
 | 领域 | 模块 |
 |------|------|
-| 模拟与温度 | [ADC](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/ADC/README.md) · [Temperature](components/bsp/Temperature/README.md) |
-| 总线与无线 | [HXC_TWAI](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/HXC_TWAI/README.md) · [wifi_manager](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/wifi_manager/README.md) |
-| GPIO 与显示 | [cpp_gpio_driver](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/cpp_gpio_driver/README.md) · [PWM](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/PWM/README.md) · [nvs_gpio_output](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/nvs_gpio_output/README.md) · [st7789_driver](components/bsp/st7789_driver/README.md) |
-| 存储与平台 | [HXC_NVS](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/HXC_NVS/README.md) · [circular_flash_buffer](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/circular_flash_buffer/README.md) · [hardware](components/bsp/hardware/README.md) · [shell](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/shell/README.md) |
-| 通用库 | [diagnostic_log](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/diagnostic_log/README.md) · [Interp](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/Interp/README.md) |
+| 模拟与温度 | [ADC](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/ADC/README.md) · [Temperature](components/bsp/Temperature/README.md) |
+| 总线与无线 | [HXC_TWAI](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/HXC_TWAI/README.md) · [wifi_manager](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/wifi_manager/README.md) |
+| GPIO 与显示 | [cpp_gpio_driver](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/cpp_gpio_driver/README.md) · [PWM](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/PWM/README.md) · [nvs_gpio_output](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/nvs_gpio_output/README.md) · [st7789_driver](components/bsp/st7789_driver/README.md) |
+| 存储与平台 | [HXC_NVS](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/HXC_NVS/README.md) · [circular_flash_buffer](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/circular_flash_buffer/README.md) · [hardware](components/bsp/hardware/README.md) · [shell](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/shell/README.md) |
+| 通用库 | [diagnostic_log](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/common/diagnostic_log/README.md) · [Interp](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/common/Interp/README.md) |
 | 静态资源 | [Fonts](components/assets/Fonts/README.md) · [ui_resources](components/assets/ui_resources/README.md) · [web_file](components/assets/web_file/README.md) |
 
 ## 二次开发入口
@@ -207,7 +212,7 @@ ESP-NOW 和普通 WiFi 共用同一套 2.4 GHz 射频，因此不能把它们当
 | 修改保护逻辑 | `components/app/protect/` |
 | 增加输出操作约束 | `components/app/power_output/` 的策略接口 |
 | 修改 ESP-NOW 产品命令 | `components/app/espnow_service/` |
-| 修改可靠传输或配对 | `components/middleware/espnow_link/` |
+| 修改可靠传输或配对 | [公共仓库 espnow_link](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/espnow_link/) |
 | 修改 WiFi/AP 配网策略 | `components/app/wifi_service/` |
 | 修改采样和积分 | `main/ulp_app/` 与 `main/ulp_loader/` |
 | 适配不同板卡 | `components/bsp/hardware/` 及相关 BSP 组件 |

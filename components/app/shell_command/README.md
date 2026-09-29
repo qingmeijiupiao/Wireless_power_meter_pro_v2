@@ -187,12 +187,12 @@ shell.register_command(ShellCommand_t("echo", "Echo input text", "<text>",
 - [`screen`](../screen/README.md)（`app`）
 - [`web_backend`](../web_backend/README.md)（`app`）
 - [`wifi_service`](../wifi_service/README.md)（`app`）
-- [`blackbox`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/blackbox/README.md)（`middleware`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/diagnostic_log/README.md)（`common`）
-- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/energy_meter/README.md)（`middleware`）
-- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/espnow_link/README.md)（`middleware`）
+- [`blackbox`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/blackbox/README.md)（`middleware`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/common/diagnostic_log/README.md)（`common`）
+- [`energy_meter`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/energy_meter/README.md)（`middleware`）
+- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/espnow_link/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
-- [`shell`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/shell/README.md)（`bsp`）
+- [`shell`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/shell/README.md)（`bsp`）
 - [`short_circuit_detect`](../../middleware/short_circuit_detect/README.md)（`middleware`）
 - [`st7789_driver`](../../bsp/st7789_driver/README.md)（`bsp`）
 

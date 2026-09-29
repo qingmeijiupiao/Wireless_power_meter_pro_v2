@@ -25,7 +25,7 @@
 - [`global_state`](../global_state/README.md)（`app`）
 - [`protect`](../protect/README.md)（`app`）
 - [`wifi_service`](../wifi_service/README.md)（`app`）
-- [`blackbox`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/blackbox/README.md)（`middleware`）
+- [`blackbox`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/blackbox/README.md)（`middleware`）
 - [`hardware`](../../bsp/hardware/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。

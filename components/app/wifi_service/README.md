@@ -151,13 +151,13 @@ wifi clear
 
 - [`espnow_service`](../espnow_service/README.md)（`app`）
 - [`global_state`](../global_state/README.md)（`app`）
-- [`DNSServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/DNSServer/README.md)（`middleware`）
-- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/espnow_link/README.md)（`middleware`）
-- [`time_service`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/time_service/README.md)（`middleware`）
-- [`WebServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/WebServer/README.md)（`middleware`）
-- [`HXC_NVS`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/HXC_NVS/README.md)（`bsp`）
-- [`wifi_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/wifi_manager/README.md)（`bsp`）
-- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/common/diagnostic_log/README.md)（`common`）
+- [`DNSServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/DNSServer/README.md)（`middleware`）
+- [`espnow_link`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/espnow_link/README.md)（`middleware`）
+- [`time_service`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/time_service/README.md)（`middleware`）
+- [`WebServer`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/middleware/WebServer/README.md)（`middleware`）
+- [`HXC_NVS`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/HXC_NVS/README.md)（`bsp`）
+- [`wifi_manager`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/wifi_manager/README.md)（`bsp`）
+- [`diagnostic_log`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/common/diagnostic_log/README.md)（`common`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->

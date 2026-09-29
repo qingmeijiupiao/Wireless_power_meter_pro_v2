@@ -88,7 +88,7 @@ const hardware_config& cfg = get_hardware_config();
 
 工程内直接依赖：
 
-- [`ADC`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/ADC/README.md)（`bsp`）
+- [`ADC`](https://github.com/qingmeijiupiao/wireless-power-components/blob/0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d/components/bsp/ADC/README.md)（`bsp`）
 
 > 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
 <!-- dependency-links:end -->
