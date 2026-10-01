@@ -15,7 +15,7 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "espnow_codec.h"
-#include "espnow_service_internal.h"
+#include "espnow_service_proto.h"
 #include "freertos/FreeRTOS.h"
 #include "global_state.h"
 #include "power_output.h"
@@ -37,13 +37,6 @@ CallbackSlot<DataReceivedHandler>   data_received_slot    = {};
 RemoteSwitchStatus                  remote_switch_status  = {};
 EspNowLink::MacAddress              remote_switch_address = {};
 
-// 固定长度协议。接收时必须严格匹配，禁止接受截断包或带尾随字段的未知版本。
-constexpr size_t SWITCH_REQUEST_SIZE  = 5;
-constexpr size_t SWITCH_RESPONSE_SIZE = 7;
-constexpr size_t REMOTE_BATTERY_SIZE  = 1;
-constexpr size_t DATA_REQUEST_SIZE    = 4;
-constexpr size_t DATA_MESSAGE_SIZE    = 40;
-
 /**
  * @brief 原子读取应用回调及其上下文
  *
@@ -63,13 +56,6 @@ template <typename Handler> void set_callback(CallbackSlot<Handler>* slot, Handl
     slot->handler = handler;
     slot->context = handler == nullptr ? nullptr : context;
     portEXIT_CRITICAL(&callback_lock);
-}
-
-/** @brief 构造业务请求/响应统一使用的可靠单播选项。 */
-EspNowLink::SendOptions reliable_options() {
-    EspNowLink::SendOptions options = {};
-    options.delivery                = EspNowLink::Delivery::RELIABLE;
-    return options;
 }
 
 // Stable wire reasons, independent of the product's OutputResult enum numbering.
@@ -97,11 +83,6 @@ uint8_t active_protection_mask() {
            (s.high_voltage_protect_state == PROTECT_STATE_PROTECT ? 2 : 0) |
            (s.low_voltage_protect_state == PROTECT_STATE_PROTECT ? 4 : 0) |
            (s.current_protect_state == PROTECT_STATE_PROTECT ? 8 : 0);
-}
-
-/** @brief 请求和响应只接受可靠单播，拒绝广播以及无链路 ACK 的尽力包。 */
-bool is_reliable_unicast(const EspNowLink::Message& message) {
-    return message.reliable && !message.destination.is_broadcast();
 }
 
 /** @brief 记录本次运行已经收到合法控制包，并锁定对应遥控器地址。 */

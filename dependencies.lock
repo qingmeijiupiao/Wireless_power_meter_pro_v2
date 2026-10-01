@@ -111,6 +111,14 @@ dependencies:
       path: components/middleware/espnow_link
       type: git
     version: 0e4e8d5a31da8bbdd6d8149ecfc5ae73416b2a3d
+  espnow_service_proto:
+    component_hash: c199a0bc8f35f63a559e7b1085eede80f4b26c5e412165f80832035c07f22bbe
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_service_proto
+      type: git
+    version: b9816655d7e1db46a8e5d3c7e29e05d9edb5f9a4
   espressif/jsmn:
     component_hash: d80350c41bbaa827c98a25b6072df00884e72f54885996fab4a4f0aebce6b6c3
     dependencies:
@@ -180,6 +188,7 @@ direct_dependencies:
 - diagnostic_log
 - energy_meter
 - espnow_link
+- espnow_service_proto
 - espressif/jsmn
 - idf
 - nvs_gpio_output
@@ -187,6 +196,6 @@ direct_dependencies:
 - shell
 - time_service
 - wifi_manager
-manifest_hash: 6c60a352510b8dc0aef29db71f382a4a1adbd32b0680bcb7331c083ae6177b58
+manifest_hash: 773a87aabb1670584bc0359b6586dea2ca5d7884d5a8cda4e640fbac4f00ea95
 target: esp32c6
 version: 3.0.0

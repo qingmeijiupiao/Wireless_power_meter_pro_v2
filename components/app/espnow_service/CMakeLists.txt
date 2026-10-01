@@ -1,11 +1,9 @@
 idf_component_register(
-    SRCS
-        "src/espnow_service_business.cpp"
-        "src/espnow_service_business_protocol.cpp"
+    SRCS "src/espnow_service_business.cpp"
     INCLUDE_DIRS "include"
-    PRIV_INCLUDE_DIRS "private_include"
     REQUIRES
         espnow_link
+        espnow_service_proto
         power_output
         energy_meter
         global_state
