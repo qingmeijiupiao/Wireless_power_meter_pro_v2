@@ -7,6 +7,8 @@ namespace EspNowService::Internal {
 constexpr uint16_t MSG_SWITCH_REQUEST  = 0x0200;
 constexpr uint16_t MSG_SWITCH_RESPONSE = 0x0201;
 constexpr uint16_t MSG_REMOTE_BATTERY  = 0x0202;
+// Optional v1 detail response; legacy 0x0201 remains unchanged.
+constexpr uint16_t MSG_SWITCH_DETAIL = 0x0203;
 constexpr uint16_t MSG_DATA_REQUEST    = 0x0210;
 constexpr uint16_t MSG_DATA_RESPONSE   = 0x0211;
 constexpr uint16_t MSG_DATA_PERIODIC   = 0x0212;

@@ -72,6 +72,33 @@ EspNowLink::SendOptions reliable_options() {
     return options;
 }
 
+// Stable wire reasons, independent of the product's OutputResult enum numbering.
+uint8_t switch_reason(PowerOutput::OutputResult result) {
+    using R = PowerOutput::OutputResult;
+    switch (result) {
+    case R::OK: return 0;
+    case R::FAIL_SHORT_CIRCUIT: return 1;
+    case R::FAIL_PROTECT_ACTIVE: return 2;
+    case R::FAIL_COOLDOWN_ACTIVE: return 3;
+    case R::FAIL_BUSY: return 4;
+    case R::FAIL_CANCELLED: return 5;
+    case R::FAIL_NOT_INIT: return 6;
+    case R::FAIL_SHORT_DETECT: return 7;
+    case R::FAIL_GPIO: return 8;
+    case R::FAIL_TIMEOUT: return 9;
+    default: return 10;
+    }
+}
+
+uint8_t active_protection_mask() {
+    if (protect_is_bypassed()) return 0;
+    const auto s = get_global_state().protect_states.states_bit;
+    return (s.temperature_protect_state == PROTECT_STATE_PROTECT ? 1 : 0) |
+           (s.high_voltage_protect_state == PROTECT_STATE_PROTECT ? 2 : 0) |
+           (s.low_voltage_protect_state == PROTECT_STATE_PROTECT ? 4 : 0) |
+           (s.current_protect_state == PROTECT_STATE_PROTECT ? 8 : 0);
+}
+
 /** @brief 请求和响应只接受可靠单播，拒绝广播以及无链路 ACK 的尽力包。 */
 bool is_reliable_unicast(const EspNowLink::Message& message) {
     return message.reliable && !message.destination.is_broadcast();
@@ -155,6 +182,16 @@ void on_switch_request(const EspNowLink::Message& message, void*) {
             uint8_t      payload[7] = {};
             const size_t size       = encode_switch_response(response, payload, sizeof(payload));
             EspNowLink::send(peer, MSG_SWITCH_RESPONSE, payload, size, reliable_options());
+            // [request_id LE32, action, legacy result, output, reason, protection mask].
+            // Old remotes ignore this message; new remotes can explain an ON refusal.
+            uint8_t detail[9] = {};
+            EspNowLink::Codec::store_le<uint32_t>(detail, request_id);
+            detail[4] = static_cast<uint8_t>(action);
+            detail[5] = static_cast<uint8_t>(response.result);
+            detail[6] = output_on ? 1 : 0;
+            detail[7] = switch_reason(output_result);
+            detail[8] = active_protection_mask();
+            EspNowLink::send(peer, MSG_SWITCH_DETAIL, detail, sizeof(detail), reliable_options());
         });
 }
 
@@ -234,7 +271,8 @@ void on_data_request(const EspNowLink::Message& message, void*) {
     response.data.charge_uah                = meter.charge_uah;
     response.data.energy_uwh                = meter.energy_uwh;
     response.data.meter_time_ms             = meter.meter_time_ms;
-    response.data.status_flags              = PowerOutput::get_state() ? DEVICE_STATUS_OUTPUT_ON : 0;
+    response.data.status_flags              = (PowerOutput::get_state() ? DEVICE_STATUS_OUTPUT_ON : 0) |
+                                             (active_protection_mask() << 1);
 
     // 数据生成耗时用于识别业务回调是否拖慢 espnow_link 分发任务。
     char mac[18] = {};
