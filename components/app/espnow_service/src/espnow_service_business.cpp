@@ -175,7 +175,7 @@ void on_remote_battery(const EspNowLink::Message& message, void*) {
     portEXIT_CRITICAL(&callback_lock);
 
     if (accepted) {
-        DEVICE_EVENT_I(TAG, "espnow: remote_battery peer=%02X:%02X:%02X:%02X:%02X:%02X percent=%u",
+        ESP_LOGI(TAG, "espnow: remote_battery peer=%02X:%02X:%02X:%02X:%02X:%02X percent=%u",
                        message.source.bytes[0], message.source.bytes[1], message.source.bytes[2],
                        message.source.bytes[3], message.source.bytes[4], message.source.bytes[5],
                        static_cast<uint32_t>(message.payload[0]));
@@ -241,7 +241,7 @@ void on_data_request(const EspNowLink::Message& message, void*) {
     snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", message.source.bytes[0], message.source.bytes[1],
              message.source.bytes[2], message.source.bytes[3], message.source.bytes[4], message.source.bytes[5]);
     const int64_t elapsed_us = esp_timer_get_time() - started_us;
-    DEVICE_EVENT_I(TAG, "espnow: data_request peer=%s voltage_mv=%u current_ua=%ld process_us=%lld", mac,
+    ESP_LOGI(TAG, "espnow: data_request peer=%s voltage_mv=%u current_ua=%ld process_us=%lld", mac,
                    response.data.voltage_mv, static_cast<int32_t>(response.data.current_ua),
                    static_cast<int64_t>(elapsed_us));
     // 即使未来数据暂不可用，也应发送 available=false 的同格式响应，而不是静默超时。
