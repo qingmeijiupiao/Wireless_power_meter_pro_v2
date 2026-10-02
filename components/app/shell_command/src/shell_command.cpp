@@ -622,7 +622,7 @@ esp_err_t init() {
         }));
 
     /**
-     * @brief  short_detect - 输出端短路检测调试命令
+     * @brief  short_detect - 输出端短路检测命令
      * @usage  short_detect [status|test|threshold [voltage_V]]
      * @note   手动测试通过 PowerOutput 仲裁，输出开启或已有检测时拒绝。
      */

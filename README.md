@@ -5,7 +5,9 @@
 OTA 升级组织为独立组件，既可以直接构建完整固件，也可以作为 ESP-IDF 多组件项目
 的参考实现。
 
-### [`硬件开源链接`](https://oshwhub.com/qingmeijiupiao/project_nkifzmsl)
+### 硬件开源链接
+
+待补充。
 
 配套遥控器固件见
 [`Wireless_power_switch_button`](https://github.com/qingmeijiupiao/Wireless_power_switch_button)。

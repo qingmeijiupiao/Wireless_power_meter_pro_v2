@@ -103,7 +103,7 @@ extern "C" void app_main(void) {
     BootDiagnostics::append_runtime();
 
     while (1) {
-        // Main loop only use for debug
+        // 主任务仅保持存活，实际工作在各自的服务任务和定时器中完成。
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }

@@ -19,7 +19,7 @@ constexpr TickType_t MOS_OUTPUT_SETTLE_TICKS   = pdMS_TO_TICKS(3000);
 constexpr TickType_t MOS_SUSPICIOUS_TICKS      = pdMS_TO_TICKS(2000);
 // 达到该持续时间才上报 suspected fault，仍然只做诊断日志，不参与保护关断。
 constexpr TickType_t MOS_FAULT_TICKS           = pdMS_TO_TICKS(5000);
-// 机器人调试时 10mA 过于敏感；提高阈值以过滤采样偏移、回灌和关断尾流。
+// 关断尾流与采样偏移可能造成误判，因此提高阈值以过滤关断尾流。
 constexpr int32_t    MOS_SUSPICIOUS_CURRENT_UA = 100 * 1000;
 
 TaskHandle_t mos_task_handle = nullptr;
