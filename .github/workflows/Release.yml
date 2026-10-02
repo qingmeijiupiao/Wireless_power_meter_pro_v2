@@ -229,6 +229,14 @@ jobs:
           echo "last_toml_path=firmware-dist/last.toml" >> "$GITHUB_OUTPUT"
           echo "last_toml_url=${LAST_TOML_URL}" >> "$GITHUB_OUTPUT"
 
+      - name: Purge jsDelivr cache
+        if: steps.distribution.outcome == 'success'
+        continue-on-error: true
+        run: |
+          curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@firmware-dist/ota/latest.json" >/dev/null || true
+          curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@firmware-dist/last.toml" >/dev/null || true
+          curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@firmware-dist/launchpad/latest.toml" >/dev/null || true
+
       # ──────────────────────────────────────────────
       #  步骤7：生成 Release 说明（changelog）
       #  自动提取两个 tag 之间的所有提交记录
