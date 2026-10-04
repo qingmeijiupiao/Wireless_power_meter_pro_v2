@@ -5,8 +5,12 @@
 
 ## 版本检查
 
-- Manifest 地址：
-  `https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@firmware-dist/ota/latest.json`
+- Manifest 路径：
+  `/gh/qingmeijiupiao/Wireless_power_meter_pro_v2@firmware-dist/ota/latest.json`
+- 依次尝试 jsDelivr 镜像源 `fastly.jsdelivr.net`、`gcore.jsdelivr.net`、`cdn.jsdelivr.net`
+  （顺序经实测调整，`cdn.jsdelivr.net` 在部分网络会被重置，放最后），任一源成功即停止；
+  单次请求超时 5 秒。不同主机名会触发独立 DNS 解析，用于绕开 ESP-IDF 只使用首条 A
+  记录、可能连接到不可达边缘 IP 的问题。
 - Manifest 由 Release 工作流生成，包含版本、固件大小和不可变下载 URL。
 - 发布内容保存在独立的 `firmware-dist` 分支，不依赖开发者本地构建或手工同步。
 - 仅当远端语义版本严格高于当前运行版本时允许在线升级。
@@ -23,10 +27,15 @@
 Manifest 声明的固件大小，并由 ESP-IDF OTA API 执行固件镜像校验。校验和激活
 成功后等待 2 秒并自动重启。
 
-固件下载最多尝试 4 次。连接中断后保留当前 OTA 写入会话，并通过 HTTP `Range`
-从已写入偏移继续请求；续传响应必须返回 `206 Partial Content`，且
-`Content-Range` 的起始偏移和固件总长度必须与本地状态一致。协议校验、固件长度
-或 Flash 写入发生错误时立即停止，避免错误内容写入目标分区。
+固件下载先在完成 Manifest 的镜像源上做 HTTP `Range` 断点续传（同一源内容一致），
+该源整体失败后才换源并从头重下，避免不同镜像返回的固件内容不一致。连接中断后保留
+当前 OTA 写入会话，并从已写入偏移继续请求；续传响应必须返回 `206 Partial Content`，
+且 `Content-Range` 的起始偏移和固件总长度必须与本地状态一致。协议校验、固件长度或
+Flash 写入发生错误时立即停止，避免错误内容写入目标分区。
+
+针对 ESP32-C6 堆内存偏小、TLS 接收 16KB 记录易失败的场景，启用 mbedTLS 动态缓冲
+（`CONFIG_MBEDTLS_DYNAMIC_BUFFER`），并在握手后把 RX 缓冲切换为静态复用
+（`HTTP_TLS_DYN_BUF_RX_STATIC`），避免逐条记录反复申请/释放造成堆碎片。
 
 每次尝试及其结果都通过 `diagnostic_log` 写入 ESP 日志，并由全局 Hook 自动持久化。
 状态迁移附带快照，失败使用 `WARN` / `ERROR`。全部自动重试失败后，用户可从 Web

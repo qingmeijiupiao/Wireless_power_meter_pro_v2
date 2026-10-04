@@ -10,6 +10,7 @@
 #include "esp_app_desc.h"
 #include "esp_check.h"
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -24,14 +25,34 @@ namespace OtaService {
 namespace {
 
 constexpr char     TAG[]                 = "OtaService";
-constexpr char     MANIFEST_URL[]        = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/"
+constexpr char     MANIFEST_PATH[]       = "/gh/qingmeijiupiao/"
                                            "Wireless_power_meter_pro_v2@firmware-dist/ota/latest.json";
 constexpr size_t   CONFIG_BUFFER_SIZE    = 4096;
 constexpr size_t   DOWNLOAD_BUFFER_SIZE  = 4096;
-constexpr uint32_t HTTP_TIMEOUT_MS       = 15000;
+constexpr uint32_t HTTP_TIMEOUT_MS       = 5000;
 constexpr uint32_t TASK_STACK_SIZE       = 10240;
 constexpr uint8_t  MAX_DOWNLOAD_ATTEMPTS = 4;
 constexpr uint32_t RETRY_DELAY_MS        = 1000;
+
+/**
+ * @brief jsDelivr 镜像源列表。
+ *
+ * cdn.jsdelivr.net 解析出的边缘 IP 可能不可达，而 ESP-IDF v6.0 的
+ * esp_tls_hostname_to_fd() 只使用 getaddrinfo 返回的第一条记录，没有 IP 级
+ * 回退。不同主机名会触发各自独立的 DNS 解析，因此按顺序轮换主机名可以绕开
+ * 单个不可达的边缘节点。
+ */
+struct ManifestSource {
+    const char* name;
+    const char* base;
+};
+
+constexpr ManifestSource SOURCES[] = {
+    {"fastly", "https://fastly.jsdelivr.net"},
+    {"gcore", "https://gcore.jsdelivr.net"},
+    {"jsdelivr", "https://cdn.jsdelivr.net"},
+};
+constexpr size_t SOURCE_COUNT = sizeof(SOURCES) / sizeof(SOURCES[0]);
 
 enum class Operation : uint8_t {
     CHECK,
@@ -49,7 +70,8 @@ TaskHandle_t      worker_task  = nullptr;
 Status            status       = {};
 char              config_buffer[CONFIG_BUFFER_SIZE];
 char              firmware_url[384];
-size_t            firmware_size = 0;
+size_t            firmware_size         = 0;
+size_t            manifest_source_index = 0;
 
 /**
  * @brief 以 ASCII 大小写不敏感方式比较两个字符串。
@@ -150,6 +172,7 @@ esp_http_client_handle_t open_http(const char* url, int64_t* content_length) {
     config.crt_bundle_attach        = esp_crt_bundle_attach;
     config.keep_alive_enable        = true;
     config.max_redirection_count    = 5;
+    config.tls_dyn_buf_strategy     = HTTP_TLS_DYN_BUF_RX_STATIC;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == nullptr) {
@@ -184,39 +207,51 @@ void close_http(esp_http_client_handle_t client) {
 }
 
 esp_err_t fetch_manifest(char* output, size_t output_size) {
-    set_active_source("jsdelivr");
-    DEVICE_EVENT_I(TAG, "ota: manifest_attempt source=jsdelivr url=%s", MANIFEST_URL);
+    for (size_t index = 0; index < SOURCE_COUNT; ++index) {
+        char url[384] = {};
+        snprintf(url, sizeof(url), "%s%s", SOURCES[index].base, MANIFEST_PATH);
+        set_active_source(SOURCES[index].name);
+        DEVICE_EVENT_I(TAG, "ota: manifest_attempt source=%s free=%u largest=%u url=%s", SOURCES[index].name,
+                       static_cast<unsigned>(esp_get_free_heap_size()),
+                       static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)), url);
 
-    int64_t                  content_length = 0;
-    esp_http_client_handle_t client         = open_http(MANIFEST_URL, &content_length);
-    if (client == nullptr) {
-        ESP_LOGW(TAG, "ota: manifest source=jsdelivr result=failed reason=http_open");
-        return ESP_FAIL;
-    }
-    if (content_length >= static_cast<int64_t>(output_size)) {
-        close_http(client);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    size_t total = 0;
-    while (total + 1 < output_size) {
-        const int read = esp_http_client_read(client, output + total, static_cast<int>(output_size - total - 1));
-        if (read < 0) {
+        int64_t                  content_length = 0;
+        esp_http_client_handle_t client         = open_http(url, &content_length);
+        if (client == nullptr) {
+            ESP_LOGW(TAG, "ota: manifest source=%s result=failed reason=http_open", SOURCES[index].name);
+            continue;
+        }
+        if (content_length >= static_cast<int64_t>(output_size)) {
             close_http(client);
-            return ESP_FAIL;
+            ESP_LOGW(TAG, "ota: manifest source=%s result=failed reason=too_large", SOURCES[index].name);
+            continue;
         }
-        if (read == 0) {
-            break;
+
+        size_t total       = 0;
+        bool   read_failed = false;
+        while (total + 1 < output_size) {
+            const int read = esp_http_client_read(client, output + total, static_cast<int>(output_size - total - 1));
+            if (read < 0) {
+                read_failed = true;
+                break;
+            }
+            if (read == 0) {
+                break;
+            }
+            total += static_cast<size_t>(read);
         }
-        total += static_cast<size_t>(read);
+        close_http(client);
+        output[total] = '\0';
+        if (read_failed || total == 0) {
+            ESP_LOGW(TAG, "ota: manifest source=%s result=failed reason=read", SOURCES[index].name);
+            continue;
+        }
+        DEVICE_EVENT_I(TAG, "ota: manifest source=%s result=ok bytes=%" PRIu32, SOURCES[index].name,
+                       static_cast<uint32_t>(total));
+        manifest_source_index = index;
+        return ESP_OK;
     }
-    close_http(client);
-    output[total] = '\0';
-    if (total == 0) {
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-    DEVICE_EVENT_I(TAG, "ota: manifest source=jsdelivr result=ok bytes=%" PRIu32, static_cast<uint32_t>(total));
-    return ESP_OK;
+    return ESP_FAIL;
 }
 
 bool token_equals(const char* json, const jsmntok_t& token, const char* text) {
@@ -445,9 +480,24 @@ esp_err_t firmware_http_event(esp_http_client_event_t* event) {
     return ESP_OK;
 }
 
+/** @brief 提取完整 URL 的 path（含前导 '/'），用于拼接各镜像源。 */
+const char* url_path(const char* url) {
+    if (url == nullptr) {
+        return nullptr;
+    }
+    const char* scheme = strstr(url, "://");
+    if (scheme == nullptr) {
+        return nullptr;
+    }
+    return strchr(scheme + 3, '/');
+}
+
 esp_err_t download_firmware(const char* url, const char* version, size_t expected_size) {
-    set_active_source("jsdelivr");
-    DEVICE_EVENT_I(TAG, "ota: firmware_attempt source=%s version=%s url=%s", "jsdelivr", version, url);
+    const char* path = url_path(url);
+    if (path == nullptr) {
+        set_state(State::FAILED, "firmware_url_invalid");
+        return ESP_ERR_INVALID_ARG;
+    }
 
     DownloadContext context = {
         .error             = ESP_OK,
@@ -461,85 +511,119 @@ esp_err_t download_firmware(const char* url, const char* version, size_t expecte
     };
 
     set_state(State::DOWNLOADING);
-    set_active_source("jsdelivr");
     set_progress(0, 0);
 
-    esp_err_t err = ESP_FAIL;
-    // 首次连接失败后保留已写入的 OTA 会话，后续通过 Range 从断点继续下载。
-    for (uint8_t attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS && context.total < expected_size; ++attempt) {
-        context.error             = ESP_OK;
-        context.request_offset    = context.total;
-        context.range_header_seen = false;
-        context.range_valid       = context.request_offset == 0;
+    esp_err_t   err         = ESP_FAIL;
+    const char* active_name = "none";
+    // 先在完成 manifest 的镜像源上用 Range 断点续传（同一源内容一致）；只有该源
+    // 整体失败后才换源，换源时立即从头重下，避免不同镜像返回的固件内容不一致。
+    for (size_t source_step = 0; source_step < SOURCE_COUNT && context.total < expected_size; ++source_step) {
+        const size_t          source_index = (manifest_source_index + source_step) % SOURCE_COUNT;
+        const ManifestSource& source       = SOURCES[source_index];
+        active_name                        = source.name;
 
-        esp_http_client_config_t config = {};
-        config.url                      = url;
-        config.timeout_ms               = HTTP_TIMEOUT_MS;
-        config.buffer_size              = DOWNLOAD_BUFFER_SIZE;
-        config.crt_bundle_attach        = esp_crt_bundle_attach;
-        config.event_handler            = firmware_http_event;
-        config.user_data                = &context;
-        config.keep_alive_enable        = true;
-        config.max_redirection_count    = 5;
-
-        esp_http_client_handle_t client = esp_http_client_init(&config);
-        if (client == nullptr) {
-            err = ESP_ERR_NO_MEM;
-            break;
+        if (source_step > 0) {
+            if (context.ota_started) {
+                OtaManager::abort();
+            }
+            context.error             = ESP_OK;
+            context.total             = 0;
+            context.image_size        = 0;
+            context.ota_started       = false;
+            context.range_header_seen = false;
+            context.range_valid       = false;
+            set_progress(0, 0);
         }
 
-        char range_header[48] = {};
-        if (context.request_offset > 0) {
-            snprintf(range_header, sizeof(range_header), "bytes=%" PRIu32 "-",
-                     static_cast<uint32_t>(context.request_offset));
-            err = esp_http_client_set_header(client, "Range", range_header);
-            if (err != ESP_OK) {
-                esp_http_client_cleanup(client);
+        char attempt_url[448] = {};
+        snprintf(attempt_url, sizeof(attempt_url), "%s%s", source.base, path);
+
+        for (uint8_t attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS && context.total < expected_size; ++attempt) {
+            context.error             = ESP_OK;
+            context.request_offset    = context.total;
+            context.range_header_seen = false;
+            context.range_valid       = context.request_offset == 0;
+
+            set_active_source(source.name);
+            DEVICE_EVENT_I(TAG, "ota: firmware_attempt source=%s version=%s offset=%" PRIu32 " url=%s", source.name,
+                           version, static_cast<uint32_t>(context.request_offset), attempt_url);
+
+            esp_http_client_config_t config = {};
+            config.url                      = attempt_url;
+            config.timeout_ms               = HTTP_TIMEOUT_MS;
+            config.buffer_size              = DOWNLOAD_BUFFER_SIZE;
+            config.crt_bundle_attach        = esp_crt_bundle_attach;
+            config.event_handler            = firmware_http_event;
+            config.user_data                = &context;
+            config.keep_alive_enable        = true;
+            config.max_redirection_count    = 5;
+            config.tls_dyn_buf_strategy     = HTTP_TLS_DYN_BUF_RX_STATIC;
+
+            esp_http_client_handle_t client = esp_http_client_init(&config);
+            if (client == nullptr) {
+                err = ESP_ERR_NO_MEM;
                 break;
             }
-        }
 
-        DEVICE_EVENT_I(TAG,
-                       "ota: http_attempt attempt=%" PRIu32 "/%" PRIu32 " offset=%" PRIu32 " expected=%" PRIu32,
-                       static_cast<uint32_t>(attempt),
-                       static_cast<uint32_t>(MAX_DOWNLOAD_ATTEMPTS), static_cast<uint32_t>(context.request_offset),
-                       static_cast<uint32_t>(expected_size));
-        const size_t before_attempt = context.total;
-        err                         = esp_http_client_perform(client);
-        const int status_code       = esp_http_client_get_status_code(client);
-        esp_http_client_cleanup(client);
-
-        if (context.error != ESP_OK) {
-            err = context.error;
-        }
-        if (err == ESP_OK) {
-            const int expected_status = context.request_offset == 0 ? 200 : 206;
-            if (status_code != expected_status || !context.ota_started) {
-                err = ESP_ERR_INVALID_RESPONSE;
-            } else if (context.total != expected_size) {
-                err = ESP_ERR_HTTP_INCOMPLETE_DATA;
+            char range_header[48] = {};
+            if (context.request_offset > 0) {
+                snprintf(range_header, sizeof(range_header), "bytes=%" PRIu32 "-",
+                         static_cast<uint32_t>(context.request_offset));
+                err = esp_http_client_set_header(client, "Range", range_header);
+                if (err != ESP_OK) {
+                    esp_http_client_cleanup(client);
+                    break;
+                }
             }
-        }
-        if (err == ESP_OK) {
-            break;
+
+            DEVICE_EVENT_I(TAG,
+                           "ota: http_attempt source=%s attempt=%" PRIu32 "/%" PRIu32 " offset=%" PRIu32
+                           " expected=%" PRIu32,
+                           source.name, static_cast<uint32_t>(attempt), static_cast<uint32_t>(MAX_DOWNLOAD_ATTEMPTS),
+                           static_cast<uint32_t>(context.request_offset), static_cast<uint32_t>(expected_size));
+            const size_t before_attempt = context.total;
+            err                         = esp_http_client_perform(client);
+            const int status_code       = esp_http_client_get_status_code(client);
+            esp_http_client_cleanup(client);
+
+            if (context.error != ESP_OK) {
+                err = context.error;
+            }
+            if (err == ESP_OK) {
+                const int expected_status = context.request_offset == 0 ? 200 : 206;
+                if (status_code != expected_status || !context.ota_started) {
+                    err = ESP_ERR_INVALID_RESPONSE;
+                } else if (context.total != expected_size) {
+                    err = ESP_ERR_HTTP_INCOMPLETE_DATA;
+                }
+            }
+            if (err == ESP_OK) {
+                break;
+            }
+
+            ESP_LOGW(TAG,
+                     "ota: http_attempt source=%s attempt=%" PRIu32 " result=failed status=%d "
+                     "bytes=%" PRIu32 "/%" PRIu32 " gained=%" PRIu32 " err=%s",
+                     source.name, static_cast<uint32_t>(attempt), status_code, static_cast<uint32_t>(context.total),
+                     static_cast<uint32_t>(expected_size), static_cast<uint32_t>(context.total - before_attempt),
+                     esp_err_to_name(err));
+
+            // 断流（读超时/长度不完整）可在同一镜像源上续传重试；协议或写入错误则换源。
+            const bool protocol_or_write_error =
+                err == ESP_ERR_INVALID_RESPONSE || err == ESP_ERR_INVALID_SIZE ||
+                context.error == ESP_ERR_INVALID_RESPONSE || context.error == ESP_ERR_INVALID_SIZE ||
+                (context.error != ESP_OK && context.error != ESP_ERR_HTTP_INCOMPLETE_DATA &&
+                 context.error != ESP_ERR_HTTP_READ_TIMEOUT);
+            if (protocol_or_write_error) {
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(RETRY_DELAY_MS * attempt));
         }
 
-        ESP_LOGW(TAG,
-                 "ota: http_attempt attempt=%" PRIu32 " result=failed status=%d "
-                 "bytes=%" PRIu32 "/%" PRIu32 " gained=%" PRIu32 " err=%s",
-                 static_cast<uint32_t>(attempt), status_code, static_cast<uint32_t>(context.total),
-                 static_cast<uint32_t>(expected_size), static_cast<uint32_t>(context.total - before_attempt),
-                 esp_err_to_name(err));
-
-        const bool protocol_or_write_error =
-            err == ESP_ERR_INVALID_RESPONSE || err == ESP_ERR_INVALID_SIZE ||
-            context.error == ESP_ERR_INVALID_RESPONSE || context.error == ESP_ERR_INVALID_SIZE ||
-            (context.error != ESP_OK && context.error != ESP_ERR_HTTP_INCOMPLETE_DATA &&
-             context.error != ESP_ERR_HTTP_READ_TIMEOUT);
-        if (protocol_or_write_error || attempt == MAX_DOWNLOAD_ATTEMPTS) {
+        if (err == ESP_OK && context.total == expected_size) {
             break;
         }
-        vTaskDelay(pdMS_TO_TICKS(RETRY_DELAY_MS * attempt));
+        err = ESP_FAIL;
     }
 
     if (err == ESP_OK && context.total != expected_size) {
@@ -549,13 +633,12 @@ esp_err_t download_firmware(const char* url, const char* version, size_t expecte
         if (context.ota_started) {
             OtaManager::abort();
         }
-        ESP_LOGW(TAG, "ota: firmware source=jsdelivr result=failed bytes=%" PRIu32 "/%" PRIu32 " err=%s",
+        ESP_LOGW(TAG, "ota: firmware source=%s result=failed bytes=%" PRIu32 "/%" PRIu32 " err=%s", active_name,
                  static_cast<uint32_t>(context.total), static_cast<uint32_t>(expected_size), esp_err_to_name(err));
         return err;
     }
 
     set_state(State::VERIFYING);
-    set_active_source("jsdelivr");
     err = OtaManager::finish();
     if (err == ESP_OK) {
         err = OtaManager::activate();
@@ -564,11 +647,11 @@ esp_err_t download_firmware(const char* url, const char* version, size_t expecte
         if (OtaManager::get_status().state == OtaManager::State::VERIFIED) {
             OtaManager::abort();
         }
-        ESP_LOGE(TAG, "ota: firmware_verify source=jsdelivr result=failed err=%s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "ota: firmware_verify source=%s result=failed err=%s", active_name, esp_err_to_name(err));
         return err;
     }
 
-    DEVICE_STATE_I(TAG, "ota: firmware source=jsdelivr result=activated version=%s bytes=%" PRIu32, version,
+    DEVICE_STATE_I(TAG, "ota: firmware source=%s result=activated version=%s bytes=%" PRIu32, active_name, version,
                    static_cast<uint32_t>(context.total));
     return ESP_OK;
 }
