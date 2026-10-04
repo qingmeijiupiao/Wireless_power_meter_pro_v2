@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# pre-push：阻止不符合项目提交信息规范的提交被推送。
+# pre-push：阻止不符合规范的提交，以及公共组件引用不是最新的提交被推送。
 #
-# 规范（每个被推送的提交都必须满足）：
+# 提交信息规范（每个被推送的提交都必须满足）：
 #   首行：TYPE：中文描述
 #         TYPE ∈ FEAT / FIX / STYLE / VER / DOCS / REFACTOR / PERF
 #                / TEST / CHORE / BUILD / CI / REVERT
@@ -12,10 +12,17 @@
 #         WHAT：...
 #         TEST：...
 #
+# 公共组件引用检查：
+#   比对 main/idf_component.yml 中 wireless-power-components 的 pin 与远端
+#   refs/heads/main 的最新提交；不一致则打印“当前 pin / 最新”并阻止推送。
+#   无法访问远端（离线等）时跳过该检查。
+#
 # 跳过方式：git push --no-verify
 
 zero="0000000000000000000000000000000000000000"
 allowed='FEAT|FIX|STYLE|VER|DOCS|REFACTOR|PERF|TEST|CHORE|BUILD|CI|REVERT'
+common_url='https://github.com/qingmeijiupiao/wireless-power-components.git'
+manifest='main/idf_component.yml'
 failed=0
 
 check_commit() {
@@ -44,6 +51,29 @@ check_commit() {
     esac
 }
 
+check_common_ref() {
+    [ -f "$manifest" ] || return
+
+    latest=$(git ls-remote "$common_url" refs/heads/main 2>/dev/null | awk '{print $1}')
+    if [ -z "$latest" ]; then
+        printf '! 无法获取公共仓库最新引用，已跳过组件引用检查（离线？）\n'
+        return
+    fi
+
+    pins=$(grep -oE 'version:[[:space:]]*(&[A-Za-z0-9_]+[[:space:]]+)?[0-9a-f]{40}' "$manifest" 2>/dev/null | grep -oE '[0-9a-f]{40}' | sort -u)
+    for pin in $pins; do
+        if [ "$pin" != "$latest" ]; then
+            printf 'x 公共组件引用不是最新\n'
+            printf '    当前 pin：%s\n' "$pin"
+            printf '    最新    ：%s\n' "$latest"
+            printf '    请更新 %s 中 wireless_power_components_version 的取值。\n' "$manifest"
+            failed=1
+        fi
+    done
+}
+
+check_common_ref
+
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$local_sha" = "$zero" ] && continue   # 删除远端引用，无需校验
 
@@ -59,7 +89,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [ "$failed" -ne 0 ]; then
-    printf '\n推送被阻止：请按项目规范修正提交信息（git rebase -i / git commit --amend）后重试。\n'
+    printf '\n推送被阻止：请修正提交信息或公共组件引用后重试。\n'
     printf '临时跳过：git push --no-verify\n'
     exit 1
 fi

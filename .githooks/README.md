@@ -33,4 +33,6 @@ WHAT：用页面内置 Canvas 渲染器实现四条趋势曲线。
 TEST：ninja -C build 通过。
 ```
 
+此外，`pre-push` 会比对 `main/idf_component.yml` 中 `wireless-power-components` 的 pin 与远端 `refs/heads/main` 的最新提交，不一致时打印“当前 pin / 最新”并阻止推送；无法访问远端（离线等）时跳过该检查。
+
 临时跳过校验：`git push --no-verify`。
