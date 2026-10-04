@@ -554,7 +554,15 @@ esp_err_t init() {
                        static_cast<uint32_t>(raw_count), limit_label);
                 uint32_t emitted = 0;
                 uint32_t index   = 0;
+                // 拉取大日志时定期让出 CPU：每 100ms 至少 vTaskDelay(1)，
+                // 避免长时间独占单核触发任务看门狗复位。
+                constexpr int64_t DUMP_YIELD_INTERVAL_US = 100 * 1000;
+                int64_t           last_yield_us          = esp_timer_get_time();
                 for (; index < raw_count && emitted < limit;) {
+                    if (esp_timer_get_time() - last_yield_us >= DUMP_YIELD_INTERVAL_US) {
+                        last_yield_us = esp_timer_get_time();
+                        vTaskDelay(pdMS_TO_TICKS(1));
+                    }
                     const Blackbox::Record record = Blackbox::read(index);
                     if (record.header.sof != CircularFlashBuffer::BLOCK_SOF) {
                         printf("record=%" PRIu32 " type=INVALID\n", static_cast<uint32_t>(index));
