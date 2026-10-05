@@ -15,6 +15,8 @@ esp_err_t init();
 
 /** @brief 返回本次运行中观察到的远程开关及其最近电量。 */
 bool get_remote_switch_status(RemoteSwitchStatus& status);
+/** @brief 查询指定已绑定开关，电量和活动状态彼此独立。 */
+bool get_remote_switch_status(const EspNowLink::MacAddress& peer, RemoteSwitchStatus& status);
 
 /**
  * @brief 尽力向已配对设备发送本机电量，不等待链路 ACK

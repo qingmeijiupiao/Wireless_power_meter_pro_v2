@@ -12,7 +12,7 @@ dependencies:
   diagnostic_log:
     git: &wireless_power_components_repo https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/common/diagnostic_log
-    version: &wireless_power_components_version 086837785611c166abf3743670741d5c6ff2d035
+    version: &wireless_power_components_version d3f1c7822c9d033e4f9374416caee392be21ae40
   HXC_TWAI:
     git: *wireless_power_components_repo
     path: components/bsp/HXC_TWAI
@@ -82,10 +82,6 @@ dependencies:
     path: components/middleware/Button
     version: *wireless_power_components_version
   espnow_link:
-    git: *wireless_power_components_repo
-    path: components/middleware/espnow_link
-    version: *wireless_power_components_version
+    override_path: ../../wireless-power-components/components/middleware/espnow_link
   espnow_service_proto:
-    git: *wireless_power_components_repo
-    path: components/product/espnow_service_proto
-    version: *wireless_power_components_version
+    override_path: ../../wireless-power-components/components/product/espnow_service_proto

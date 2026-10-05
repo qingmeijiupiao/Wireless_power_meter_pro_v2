@@ -6,6 +6,7 @@
  * 回调运行在 espnow_link 任务中，不允许阻塞、长时间等待或执行耗时外设操作。
  */
 #include "espnow_service.h"
+#include "remote_switch_registry.h"
 
 #include <cstdio>
 
@@ -17,6 +18,7 @@
 #include "espnow_codec.h"
 #include "espnow_service_proto.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "global_state.h"
 #include "power_output.h"
 
@@ -34,8 +36,7 @@ constexpr char TAG[] = "EspNowService";
 portMUX_TYPE                        callback_lock         = portMUX_INITIALIZER_UNLOCKED;
 CallbackSlot<SwitchResponseHandler> switch_response_slot  = {};
 CallbackSlot<DataReceivedHandler>   data_received_slot    = {};
-RemoteSwitchStatus                  remote_switch_status  = {};
-EspNowLink::MacAddress              remote_switch_address = {};
+TaskHandle_t remote_watchdog = nullptr;
 
 /**
  * @brief 原子读取应用回调及其上下文
@@ -87,13 +88,42 @@ uint8_t active_protection_mask() {
 
 /** @brief 记录本次运行已经收到合法控制包，并锁定对应遥控器地址。 */
 void mark_remote_switch_connected(const EspNowLink::MacAddress& source) {
-    portENTER_CRITICAL(&callback_lock);
-    if (!remote_switch_status.connected || remote_switch_address != source) {
-        remote_switch_status  = {};
-        remote_switch_address = source;
+    // 已知绑定无需每包重读 NVS；未知来源再刷新以纳入刚保存的新绑定。
+    RemoteSwitchStatus bound = {};
+    if (!RemoteRegistry::get(source, bound)) {
+        RemoteRegistry::refresh_bindings();
     }
-    remote_switch_status.connected = true;
-    portEXIT_CRITICAL(&callback_lock);
+    RemoteRegistry::observe(source);
+}
+
+/** 急停状态与普通控制分离；OFF 同步完成前保持禁止开启。 */
+void on_remote_interlock(const EspNowLink::Message& message, void*) {
+    if (!is_reliable_unicast(message) || message.payload_size != 1 || message.payload[0] > 1) {
+        return;
+    }
+    RemoteRegistry::refresh_bindings();
+    RemoteRegistry::set_interlock(message.source, message.payload[0] != 0);
+    if (RemoteRegistry::is_inhibited()) {
+        PowerOutput::off(TAG);
+    }
+}
+
+/** 维护绑定、电量及急停失联状态；持久化角色不占用接收回调。 */
+void remote_watchdog_task(void*) {
+    bool inhibited_before = false;
+    while (true) {
+        RemoteRegistry::refresh_bindings();
+        RemoteRegistry::persist_roles();
+        const bool inhibited = RemoteRegistry::is_inhibited();
+        if (inhibited && (!inhibited_before || PowerOutput::get_state())) {
+            PowerOutput::off(TAG);
+        }
+        if (inhibited != inhibited_before) {
+            ESP_LOGI(TAG, "remote interlock inhibited=%u", inhibited);
+        }
+        inhibited_before = inhibited;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 /**
@@ -118,6 +148,12 @@ void on_switch_request(const EspNowLink::Message& message, void*) {
     }
     const SwitchAction action = static_cast<SwitchAction>(message.payload[4]);
     mark_remote_switch_connected(message.source);
+    RemoteSwitchStatus bound = {};
+    if (!RemoteRegistry::get(message.source, bound)) {
+        // 未绑定来源无 peer 无法回包，记录后丢弃；调用方以业务超时感知。
+        ESP_LOGW(TAG, "espnow: unbound switch request dropped");
+        return;
+    }
 
     // Copy request metadata: the receive payload is only valid inside this callback.
     const auto peer = message.source;
@@ -182,22 +218,8 @@ void on_remote_battery(const EspNowLink::Message& message, void*) {
         message.payload[0] > 100) {
         return;
     }
-
-    bool accepted = false;
-    portENTER_CRITICAL(&callback_lock);
-    if (remote_switch_status.connected && remote_switch_address == message.source) {
-        remote_switch_status.battery_percent = message.payload[0];
-        remote_switch_status.battery_valid   = true;
-        accepted                             = true;
-    }
-    portEXIT_CRITICAL(&callback_lock);
-
-    if (accepted) {
-        ESP_LOGI(TAG, "espnow: remote_battery peer=%02X:%02X:%02X:%02X:%02X:%02X percent=%u",
-                       message.source.bytes[0], message.source.bytes[1], message.source.bytes[2],
-                       message.source.bytes[3], message.source.bytes[4], message.source.bytes[5],
-                       static_cast<uint32_t>(message.payload[0]));
-    }
+    RemoteRegistry::refresh_bindings();
+    RemoteRegistry::observe(message.source, message.payload[0]);
 }
 
 /**
@@ -236,6 +258,13 @@ void on_data_request(const EspNowLink::Message& message, void*) {
     }
     const uint32_t request_id = EspNowLink::Codec::load_le<uint32_t>(message.payload);
     if (request_id == 0) {
+        return;
+    }
+
+    mark_remote_switch_connected(message.source);
+    RemoteSwitchStatus bound = {};
+    if (!RemoteRegistry::get(message.source, bound)) {
+        ESP_LOGW(TAG, "espnow: unbound data request dropped");
         return;
     }
 
@@ -335,6 +364,13 @@ void on_periodic_data(const EspNowLink::Message& message, void*) {
 esp_err_t init() {
     // service 负责完整启动链路，调用方无需重复初始化 EspNowLink。
     ESP_ERROR_CHECK(EspNowLink::init());
+    ESP_ERROR_CHECK(EspNowLink::configure_pairing(pairing_config(PairingRole::METER)));
+    RemoteRegistry::refresh_bindings();
+    ESP_ERROR_CHECK(EspNowLink::register_handler(Internal::MSG_REMOTE_INTERLOCK, Internal::on_remote_interlock));
+    if (Internal::remote_watchdog == nullptr &&
+        xTaskCreate(Internal::remote_watchdog_task, "remote_watch", 3072, nullptr, 3, &Internal::remote_watchdog) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
 
     // 每个业务 ID 直接绑定唯一处理函数，接收路径无需二次分发。
     ESP_ERROR_CHECK(EspNowLink::register_handler(Internal::MSG_SWITCH_REQUEST, Internal::on_switch_request));
@@ -347,10 +383,11 @@ esp_err_t init() {
 }
 
 bool get_remote_switch_status(RemoteSwitchStatus& status) {
-    portENTER_CRITICAL(&Internal::callback_lock);
-    status = Internal::remote_switch_status;
-    portEXIT_CRITICAL(&Internal::callback_lock);
-    return status.connected;
+    return RemoteRegistry::latest(status);
+}
+
+bool get_remote_switch_status(const EspNowLink::MacAddress& peer, RemoteSwitchStatus& status) {
+    return RemoteRegistry::get(peer, status);
 }
 
 esp_err_t send_remote_battery(const EspNowLink::MacAddress& destination, uint8_t battery_percent,

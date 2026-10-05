@@ -1,5 +1,6 @@
 /** 统一输出事务；所有主输出开启必须经过本模块。 */
 #include "power_output.h"
+#include "remote_switch_registry.h"
 #include "protect_policy.hpp"
 #include "cooldown_policy.hpp"
 #include "short_circuit_detect.h"
@@ -18,6 +19,18 @@
 
 namespace PowerOutput {
 namespace {
+
+/** 所有开启来源统一经过急停仲裁，OFF 永远不被此策略阻断。 */
+class RemoteInterlockPolicy final : public OutputPolicy {
+public:
+    OutputResult check(OutputOperation op, bool) override {
+        return op != OutputOperation::OFF && EspNowService::RemoteRegistry::is_inhibited() ?
+            OutputResult::FAIL_PROTECT_ACTIVE : OutputResult::OK;
+    }
+    void on_state_applied(OutputOperation, bool) override {}
+};
+static RemoteInterlockPolicy remote_interlock_policy;
+
 constexpr char TAG[] = "PowerOutput";
 constexpr size_t MAX_POLICIES = 8;
 constexpr size_t MAX_CALLBACKS = 8;
@@ -389,6 +402,7 @@ esp_err_t init(gpio_num_t gpio) {
     policy_count = 0;
     policies[policy_count++] = &protect_policy;
     policies[policy_count++] = &cooldown_policy;
+    policies[policy_count++] = &remote_interlock_policy;
     if (!worker_task && xTaskCreate(worker, "output_check", 4096, nullptr, 4, &worker_task) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
