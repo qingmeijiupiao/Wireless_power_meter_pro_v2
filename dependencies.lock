@@ -112,7 +112,7 @@ dependencies:
       type: git
     version: d3f1c7822c9d033e4f9374416caee392be21ae40
   espnow_service_proto:
-    component_hash: 06241d1f538adbd3382f6be8d9b3a2bcded57cb66f3816fd704fe8f685e0fea8
+    component_hash: b530d696cc580b6585eb4628cd70c18bb57faf80ba0a248a9a2429e19a0832d0
     dependencies: []
     source:
       git: https://github.com/qingmeijiupiao/wireless-power-components.git
