@@ -12,7 +12,7 @@ dependencies:
   diagnostic_log:
     git: &wireless_power_components_repo https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/common/diagnostic_log
-    version: &wireless_power_components_version d3f1c7822c9d033e4f9374416caee392be21ae40
+    version: &wireless_power_components_version 0bb4113e313d0c600c006329db920e6d0fdd6aac
   HXC_TWAI:
     git: *wireless_power_components_repo
     path: components/bsp/HXC_TWAI
