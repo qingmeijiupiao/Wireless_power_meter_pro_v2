@@ -2590,6 +2590,13 @@ CONFIG_VFS_INITIALIZE_DEV_NULL=y
 # end of Virtual file system
 
 #
+# ESP-NOW reliable link
+#
+# default:
+CONFIG_ESPNOW_LINK_TASK_STACK_SIZE=4096
+# end of ESP-NOW reliable link
+
+#
 # jsmn
 #
 # default:
@@ -2599,13 +2606,6 @@ CONFIG_JSMN_STRICT=y
 # default:
 # CONFIG_JSMN_STATIC is not set
 # end of jsmn
-
-#
-# ESP-NOW reliable link
-#
-# default:
-CONFIG_ESPNOW_LINK_TASK_STACK_SIZE=4096
-# end of ESP-NOW reliable link
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

@@ -82,6 +82,10 @@ dependencies:
     path: components/middleware/Button
     version: *wireless_power_components_version
   espnow_link:
-    override_path: ../../wireless-power-components/components/middleware/espnow_link
+    git: *wireless_power_components_repo
+    path: components/middleware/espnow_link
+    version: *wireless_power_components_version
   espnow_service_proto:
-    override_path: ../../wireless-power-components/components/product/espnow_service_proto
+    git: *wireless_power_components_repo
+    path: components/product/espnow_service_proto
+    version: *wireless_power_components_version
