@@ -278,16 +278,53 @@ esptool.py --chip esp32c6 write_flash 0x0 Wireless_power_meter_pro_v2_merged.bin
 在线入口读取 `firmware-dist` 分支上的最新发布配置，需要使用支持 Web Serial 的
 Chromium 系浏览器。完整烧录会清除 NVS 配置，升级前应确认是否需要备份。
 
+## 获取 CI 临时固件
+
+无需搭建本地开发环境或创建版本标签，推送代码并等待 CI 成功即可下载临时固件。
+
+1. 登录 GitHub，打开本仓库的 [CI Actions](https://github.com/qingmeijiupiao/Wireless_power_meter_pro_v2/actions/workflows/CI.yml)。
+   如果在自己的 fork 中开发，先启用该仓库的 Actions，并从自己的仓库进入。
+2. 按分支和提交选择对应的成功运行；也可用 **Run workflow** 手动选择源码分支构建。
+3. 在运行的 **Summary → Artifacts** 中下载固件 ZIP；Summary 中也会显示固件下载链接。
+4. 解压后查看 `build-info.json` 和 `README.txt`，确认产品、芯片、源码 SHA 和烧录方式。
+
+固件包名称为 `Wireless_power_meter_pro_v2-firmware-<短SHA>-<run_id>-<attempt>`，保留 **14 天**，到期自动清理。
+下载需要登录 GitHub 并具有仓库读取权限；运行失败或被取消时，可能没有可下载的固件。
+
+| 文件 | 用途 |
+|------|------|
+| `Wireless_power_meter_pro_v2_app_<短SHA>.bin` | 仅应用程序，使用兼容的 Bootloader 和分区表 |
+| `Wireless_power_meter_pro_v2_merged_<短SHA>.bin` | 完整固件，写入 `0x0`，用于首次安装或恢复 |
+| `SHA256SUMS` | 两个 BIN 的 SHA256 校验和 |
+| `build-info.json` | 版本、源码 SHA、分支/引用、时间、芯片、IDF 版本和运行链接 |
+| `README.txt` | 本次固件的烧录说明 |
+
+APP 固件可通过设备 Web 页面手动上传进行 OTA 升级；串口写入 app0 的地址为 `0x20000`，
+但 OTA 设备可能正在运行 app1，串口更新前需要确认启动分区。优先使用 Web OTA。
+APP 固件仅适用于 Bootloader 和分区表兼容的更新。merged 会覆盖 NVS，配对、校准和配置需要重新设置；
+merged 还会重置 OTA 启动状态。可在解压目录运行 `sha256sum -c SHA256SUMS` 校验 BIN；
+Windows PowerShell 可用 `Get-FileHash .\*.bin -Algorithm SHA256` 与 `SHA256SUMS` 对照。
+
+CI 覆盖除 `firmware-dist` 外的分支推送、目标为 `main` 的 PR，以及手动运行。一次 push 含多个
+commit 时只构建最后一个提交；PR 默认构建 GitHub 生成的合并提交，`source_sha` 记录实际构建
+提交，`pull_request_head_sha` 记录 PR 来源提交。分支推送和 PR 可能分别产生一次运行。
+
+临时固件使用 `PATCH=99`，同一主次版本的不同构建通过 SHA 区分。正式版本仍通过版本标签
+发布到 Releases；在线烧录入口和远端 OTA 清单仍指向正式版本。
+
+临时版本的 PATCH=99 高于同一主次版本正式固件的 PATCH=0，远端版本检查不会自动降级；
+需要切回正式版本时，可手动上传正式 APP 或完整烧录。
+
 ## 版本与发布
 
 版本格式为 `MAJOR.MINOR.PATCH`：
 
 - 开发者维护顶层 `CMakeLists.txt` 中的 `MAJOR` 和 `MINOR`；
-- 本地构建使用 `PATCH=99`，表示非正式固件；同一 MAJOR.MINOR 下，99 高于正式版0，在线版本比较不会将其降级到正式版；
+- 本地及 CI 临时构建使用 `PATCH=99`，表示非正式固件；同一 MAJOR.MINOR 下，99 高于正式版0，在线版本比较不会将其降级到正式版；
 - 标签发布由 CI 使用 `PATCH=0` 构建，例如 `v0.9.0`；
 - 编译时间统一按 UTC+8 写入固件。
 
-推送或提交 PR 到 `main` 时，CI 会检查工程能否正常构建。推送版本标签后，CD 会生成
+源码分支推送、目标为 `main` 的 PR 或手动运行会触发 CI，编译、校验并上传上述临时固件。推送版本标签后，CD 会生成
 发布固件、校验文件和在线烧录配置。
 
 ## 使用在线环境开发
@@ -329,7 +366,12 @@ codespace加载较慢请耐心等待
 web按钮和本地开发无异,但是由于codespace性能低延迟高,操作响应慢是正常现象
 有条件还是建议本地开发
 
-### 6.使用CD生成固件
+### 6.使用 CI 获取临时固件
+
+启用 fork 仓库的 Actions 后，推送代码并按照[获取 CI 临时固件](#获取-ci-临时固件)下载，
+无需创建版本标签。
+
+### 7.使用 CD 发布正式固件
 **注意需要先启用仓库的action功能**
 在修改代码推送后可以创建vX.X.0的版本标签，例如 **v99.10.0** 
 

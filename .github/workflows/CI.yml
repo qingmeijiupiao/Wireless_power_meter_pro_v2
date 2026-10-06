@@ -2,17 +2,23 @@
 #  功率计 Pro V2 持续集成流水线
 # ────────────────────────────────────────────────────────
 #  触发条件：
-#    - 向 main 分支推送代码
+#    - 向源码分支推送代码（排除 firmware-dist）
 #    - 向 main 分支发起 Pull Request
-#  作用：验证固件能否正常编译，提前发现构建错误
+#    - 手动运行 workflow_dispatch
+#  作用：编译、校验并上传临时固件（保留 14 天）
 # ────────────────────────────────────────────────────────
 name: 功率计 Pro V2 CI
 
 on:
   push:
-    branches: [main]        # 代码推送到 main 时触发
+    branches-ignore: [firmware-dist]
   pull_request:
     branches: [main]        # PR 目标为 main 时触发
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   ci:
@@ -34,3 +40,117 @@ jobs:
           esp_idf_version: v6.0
           target: esp32c6
           path: "./"
+          command: idf.py build
+
+      - name: Validate and package temporary firmware
+        id: package
+        shell: python
+        env:
+          PROJECT_NAME: Wireless_power_meter_pro_v2
+          TARGET_CHIP: esp32c6
+        run: |
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          project = os.environ["PROJECT_NAME"]
+          chip = os.environ["TARGET_CHIP"]
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          short_sha = sha[:12]
+          app = Path(f"build/{project}.bin").read_bytes()
+          merged = Path(f"{project}_merged.bin").read_bytes()
+          if not app or not merged:
+              raise SystemExit("APP and merged firmware must both be non-empty")
+
+          partitions = {}
+          for line in Path("partitions.csv").read_text(encoding="utf-8").splitlines():
+              if line.strip() and not line.lstrip().startswith("#"):
+                  fields = [field.strip() for field in line.split(",")]
+                  partitions[fields[0]] = (int(fields[3], 0), int(fields[4], 0))
+          app_offset, app_size = partitions["app0"]
+          nvs_offset, nvs_size = partitions["nvs"]
+          if len(app) > app_size or merged[app_offset:app_offset + len(app)] != app:
+              raise SystemExit("APP size or merged APP layout is invalid")
+          if len(merged) < nvs_offset + nvs_size or any(
+              value != 0xff for value in merged[nvs_offset:nvs_offset + nvs_size]
+          ):
+              raise SystemExit("Merged NVS range is not blank")
+
+          description = json.loads(Path("build/project_description.json").read_text(encoding="utf-8"))
+          if description["project_name"] != project or description["target"] != chip:
+              raise SystemExit("Build project or chip does not match the firmware package")
+          run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          metadata = {
+              "project": project,
+              "version": description["project_version"],
+              "source_sha": sha,
+              "event_sha": os.environ["GITHUB_SHA"],
+              "ref": os.environ["GITHUB_REF"],
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "built_at": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
+              "chip": chip,
+              "idf_version": "v6.0",
+              "run_url": run_url,
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }
+          if metadata["event"] == "pull_request":
+              event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+              metadata["pull_request_head_sha"] = event["pull_request"]["head"]["sha"]
+              metadata["branch"] = event["pull_request"]["head"]["ref"]
+          else:
+              metadata["branch"] = os.environ["GITHUB_REF_NAME"]
+
+          output = Path("ci-firmware")
+          output.mkdir(exist_ok=True)
+          checksums = []
+          for kind, data in (("app", app), ("merged", merged)):
+              filename = f"{project}_{kind}_{short_sha}.bin"
+              (output / filename).write_bytes(data)
+              checksums.append(f"{hashlib.sha256(data).hexdigest()}  {filename}")
+          (output / "SHA256SUMS").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+          (output / "build-info.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          app_usage = (
+              "Use the APP image with the device's Web OTA upload. For serial flashing, app0 starts at 0x20000; verify the active OTA slot before writing.\n"
+              if chip == "esp32c6" else
+              "No OTA support. Flash the APP image over USB/serial.\n"
+          )
+          (output / "README.txt").write_text(
+              f"{project} temporary CI firmware ({chip})\nSource: {sha}\nRun: {run_url}\n"
+              f"APP: app0 offset {hex(app_offset)}. Use only with a compatible bootloader and partition layout; preserves NVS.\n"
+              + app_usage
+              + "Merged: flash at 0x0 for first installation or recovery. Overwrites NVS; pairing, calibration and settings must be restored.\n"
+              + "Version PATCH=99 identifies a development build. Artifacts expire after 14 days.\n"
+              + "Check build-info.json before use. PR source_sha identifies the tested merge commit.\n"
+              + "Verify BIN checksums after extracting: sha256sum -c SHA256SUMS\n",
+              encoding="utf-8",
+          )
+          artifact_name = f"{project}-firmware-{short_sha}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"artifact_name={artifact_name}\n")
+          print(f"Validated and packaged APP={len(app)} bytes, merged={len(merged)} bytes")
+
+      - name: Upload temporary firmware
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ci-firmware/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Show firmware download link
+        shell: python
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          import os
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write(
+                  "### Temporary firmware\n\n"
+                  f"[Download firmware package]({os.environ['ARTIFACT_URL']})\n\n"
+                  "Includes APP, merged, SHA256SUMS, build-info.json and flashing instructions.\n"
+                  "Retention: 14 days. GitHub login and repository read access are required.\n"
+              )
